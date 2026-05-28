@@ -73,6 +73,7 @@ jobs:
         run: |
           env \
             GITHUB_ACTIONS=false \
+            GITHUB_STEP_SUMMARY=test-output/CP-GHA-006/action-summary.md \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_REF_NAME="$GITHUB_REF_NAME" \
             GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
@@ -148,6 +149,7 @@ jobs:
         run: |
           env \
             GITHUB_ACTIONS=false \
+            GITHUB_STEP_SUMMARY=test-output/CP-GHA-006/action-summary.md \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_REF_NAME="$GITHUB_REF_NAME" \
             GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
@@ -531,7 +533,7 @@ jobs:
         run: |
           set -euo pipefail
           test "${{ steps.contributors.outputs.committer-login }}" = "self-exclusion-bot"
-          grep -F "Self-excluded committer" "$GITHUB_STEP_SUMMARY"
+          grep -F "Self-excluded committer" test-output/CP-GHA-006/action-summary.md
           grep -F "self-exclusion-control Self Exclusion Control" test-output/CP-GHA-006/contributors.md
           if grep -F "self-exclusion-bot Self Exclusion Bot" test-output/CP-GHA-006/contributors.md; then
             echo "self-exclusion-bot rendered without unignore" >&2
@@ -539,6 +541,7 @@ jobs:
           fi
           grep -F "self-exclusion-bot Self Exclusion Bot" test-output/CP-GHA-006/unignore-contributors.md
           cp test-output/CP-GHA-006/filtered.jsonl test-output/CP-GHA-006/.contributors.jsonl
+          cat test-output/CP-GHA-006/action-summary.md >> "$GITHUB_STEP_SUMMARY"
           {
             echo "### CP-GHA-006"
             echo ""
