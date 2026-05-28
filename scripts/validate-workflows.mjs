@@ -103,6 +103,12 @@ for (const [file, ids] of Object.entries(expectedWorkflows)) {
     `${file} does not use the shared contributors-please-test concurrency group`,
   );
   assert(text.includes("action_ref:"), `${file} is missing workflow_dispatch action_ref input`);
+  const artifactUploads = [...text.matchAll(/uses: actions\/upload-artifact@v4/g)].length;
+  const hiddenArtifactUploads = [...text.matchAll(/include-hidden-files: true/g)].length;
+  assert(
+    artifactUploads === hiddenArtifactUploads,
+    `${file} must set include-hidden-files: true on every artifact upload so .contributors* evidence is published`,
+  );
   for (const id of ids) {
     const cpId = `CP-GHA-${id}`;
     const jobId = `cp-gha-${id}`;

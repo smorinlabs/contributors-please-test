@@ -113,6 +113,7 @@ jobs:
         with:
           name: cp-gha-039
           path: test-output/CP-GHA-039
+          include-hidden-files: true
 
   cp-gha-040:
     name: CP-GHA-040 py-launch-blueprint acceptance flow
@@ -205,3 +206,4 @@ jobs:
         with:
           name: cp-gha-040
           path: test-output/CP-GHA-040
+          include-hidden-files: true

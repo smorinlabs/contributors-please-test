@@ -90,6 +90,7 @@ jobs:
         with:
           name: cp-gha-001
           path: test-output/CP-GHA-001
+          include-hidden-files: true
 
   cp-gha-002:
     name: CP-GHA-002 PAT acquisition and identity
@@ -143,6 +144,7 @@ jobs:
         with:
           name: cp-gha-002
           path: test-output/CP-GHA-002
+          include-hidden-files: true
 
   cp-gha-003:
     name: CP-GHA-003 expected-failure-missing-credentials
@@ -203,6 +205,7 @@ jobs:
         with:
           name: cp-gha-003
           path: test-output/CP-GHA-003
+          include-hidden-files: true
 
   cp-gha-004:
     name: CP-GHA-004 contributor discovery smoke
@@ -253,6 +256,7 @@ jobs:
         with:
           name: cp-gha-004
           path: test-output/CP-GHA-004
+          include-hidden-files: true
 
   cp-gha-005:
     name: CP-GHA-005 expected-failure-shallow-checkout
@@ -320,6 +324,7 @@ jobs:
         with:
           name: cp-gha-005
           path: test-output/CP-GHA-005
+          include-hidden-files: true
 
   cp-gha-006:
     name: CP-GHA-006 self-exclusion notice
@@ -372,3 +377,4 @@ jobs:
         with:
           name: cp-gha-006
           path: test-output/CP-GHA-006
+          include-hidden-files: true

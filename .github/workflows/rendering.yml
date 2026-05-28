@@ -128,6 +128,7 @@ jobs:
         with:
           name: cp-gha-014
           path: test-output/CP-GHA-014
+          include-hidden-files: true
 
   cp-gha-015:
     name: CP-GHA-015 template-file rendering
@@ -248,6 +249,7 @@ jobs:
         with:
           name: cp-gha-015
           path: test-output/CP-GHA-015
+          include-hidden-files: true
 
   cp-gha-016:
     name: CP-GHA-016 header footer rendering
@@ -367,6 +369,7 @@ jobs:
         with:
           name: cp-gha-016
           path: test-output/CP-GHA-016
+          include-hidden-files: true
 
   cp-gha-017:
     name: CP-GHA-017 in-place rendering
@@ -509,6 +512,7 @@ jobs:
         with:
           name: cp-gha-017
           path: test-output/CP-GHA-017
+          include-hidden-files: true
 
   cp-gha-018:
     name: CP-GHA-018 expected-failure-wrapper-mutual-exclusion
@@ -716,3 +720,4 @@ jobs:
         with:
           name: cp-gha-018
           path: test-output/CP-GHA-018
+          include-hidden-files: true

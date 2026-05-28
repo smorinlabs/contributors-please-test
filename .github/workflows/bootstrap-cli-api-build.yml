@@ -104,6 +104,7 @@ jobs:
         with:
           name: cp-gha-033
           path: test-output/CP-GHA-033
+          include-hidden-files: true
 
   cp-gha-034:
     name: CP-GHA-034 expected-failure-missing-state
@@ -156,6 +157,7 @@ jobs:
         with:
           name: cp-gha-034
           path: test-output/CP-GHA-034
+          include-hidden-files: true
 
   cp-gha-035:
     name: CP-GHA-035 bootstrap true pull request
@@ -217,6 +219,7 @@ jobs:
         with:
           name: cp-gha-035
           path: test-output/CP-GHA-035
+          include-hidden-files: true
 
   cp-gha-036:
     name: CP-GHA-036 schema validation codegen invariants
@@ -285,6 +288,7 @@ jobs:
         with:
           name: cp-gha-036
           path: test-output/CP-GHA-036
+          include-hidden-files: true
 
   cp-gha-037:
     name: CP-GHA-037 public API and custom classifier
@@ -412,6 +416,7 @@ jobs:
         with:
           name: cp-gha-037
           path: test-output/CP-GHA-037
+          include-hidden-files: true
 
   cp-gha-038:
     name: CP-GHA-038 reproducible bundles and action wrapper
@@ -486,6 +491,7 @@ jobs:
         with:
           name: cp-gha-038
           path: test-output/CP-GHA-038
+          include-hidden-files: true
 
   cp-gha-044:
     name: CP-GHA-044 CLI render validate parity
@@ -557,6 +563,7 @@ jobs:
         with:
           name: cp-gha-044
           path: test-output/CP-GHA-044
+          include-hidden-files: true
 
   cp-gha-047:
     name: CP-GHA-047 commit-message variants
@@ -645,3 +652,4 @@ jobs:
         with:
           name: cp-gha-047
           path: test-output/CP-GHA-047
+          include-hidden-files: true

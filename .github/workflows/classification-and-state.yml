@@ -124,6 +124,7 @@ jobs:
         with:
           name: cp-gha-007
           path: test-output/CP-GHA-007
+          include-hidden-files: true
 
   cp-gha-008:
     name: CP-GHA-008 custom classifier config
@@ -238,6 +239,7 @@ jobs:
         with:
           name: cp-gha-008
           path: test-output/CP-GHA-008
+          include-hidden-files: true
 
   cp-gha-009:
     name: CP-GHA-009 combination title config
@@ -377,6 +379,7 @@ jobs:
         with:
           name: cp-gha-009
           path: test-output/CP-GHA-009
+          include-hidden-files: true
 
   cp-gha-010:
     name: CP-GHA-010 expected-failure-invalid-classifier
@@ -467,6 +470,7 @@ jobs:
         with:
           name: cp-gha-010
           path: test-output/CP-GHA-010
+          include-hidden-files: true
 
   cp-gha-011:
     name: CP-GHA-011 declared pinned contributor
@@ -549,6 +553,7 @@ jobs:
         with:
           name: cp-gha-011
           path: test-output/CP-GHA-011
+          include-hidden-files: true
 
   cp-gha-012:
     name: CP-GHA-012 declared contributor later appears
@@ -639,6 +644,7 @@ jobs:
         with:
           name: cp-gha-012
           path: test-output/CP-GHA-012
+          include-hidden-files: true
 
   cp-gha-013:
     name: CP-GHA-013 pin staleness warning
@@ -737,6 +743,7 @@ jobs:
         with:
           name: cp-gha-013
           path: test-output/CP-GHA-013
+          include-hidden-files: true
 
   cp-gha-019:
     name: CP-GHA-019 jsonl state behavior
@@ -826,6 +833,7 @@ jobs:
         with:
           name: cp-gha-019
           path: test-output/CP-GHA-019
+          include-hidden-files: true
 
   cp-gha-020:
     name: CP-GHA-020 first-seen semantics
@@ -893,3 +901,4 @@ jobs:
         with:
           name: cp-gha-020
           path: test-output/CP-GHA-020
+          include-hidden-files: true

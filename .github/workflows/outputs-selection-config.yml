@@ -155,6 +155,7 @@ jobs:
         with:
           name: cp-gha-027
           path: test-output/CP-GHA-027
+          include-hidden-files: true
 
   cp-gha-028:
     name: CP-GHA-028 selection and ordering
@@ -290,6 +291,7 @@ jobs:
         with:
           name: cp-gha-028
           path: test-output/CP-GHA-028
+          include-hidden-files: true
 
   cp-gha-029:
     name: CP-GHA-029 flat and root package config
@@ -393,6 +395,7 @@ jobs:
         with:
           name: cp-gha-029
           path: test-output/CP-GHA-029
+          include-hidden-files: true
 
   cp-gha-030:
     name: CP-GHA-030 expected-failure-non-root-package
@@ -497,6 +500,7 @@ jobs:
         with:
           name: cp-gha-030
           path: test-output/CP-GHA-030
+          include-hidden-files: true
 
   cp-gha-045:
     name: CP-GHA-045 defaults smoke
@@ -585,6 +589,7 @@ jobs:
         with:
           name: cp-gha-045
           path: test-output/CP-GHA-045
+          include-hidden-files: true
 
   cp-gha-046:
     name: CP-GHA-046 custom file path inputs
@@ -668,3 +673,4 @@ jobs:
         with:
           name: cp-gha-046
           path: test-output/CP-GHA-046
+          include-hidden-files: true

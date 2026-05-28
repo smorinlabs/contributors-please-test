@@ -131,6 +131,7 @@ jobs:
         with:
           name: cp-gha-031
           path: test-output/CP-GHA-031
+          include-hidden-files: true
 
   cp-gha-032:
     name: CP-GHA-032 HTTPS proxy network boundary
@@ -259,6 +260,7 @@ jobs:
         with:
           name: cp-gha-032
           path: test-output/CP-GHA-032
+          include-hidden-files: true
 
   cp-gha-041:
     name: CP-GHA-041 identity join fallback warnings
@@ -394,6 +396,7 @@ jobs:
         with:
           name: cp-gha-041
           path: test-output/CP-GHA-041
+          include-hidden-files: true
 
   cp-gha-042:
     name: CP-GHA-042 pagination and expected rate-limit failure
@@ -516,6 +519,7 @@ jobs:
         with:
           name: cp-gha-042
           path: test-output/CP-GHA-042
+          include-hidden-files: true
 
   cp-gha-043:
     name: CP-GHA-043 expected-failure-label-permission-and-secret-scan
@@ -617,6 +621,7 @@ jobs:
         with:
           name: cp-gha-043
           path: test-output/CP-GHA-043
+          include-hidden-files: true
 
   cp-gha-048:
     name: CP-GHA-048 explicit endpoint overrides
@@ -728,3 +733,4 @@ jobs:
         with:
           name: cp-gha-048
           path: test-output/CP-GHA-048
+          include-hidden-files: true
