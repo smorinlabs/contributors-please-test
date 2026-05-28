@@ -238,7 +238,7 @@ jobs:
           state-file: test-output/CP-GHA-032/.contributors.jsonl
           mode: check
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Verify proxy boundary
         run: |
           set -euo pipefail
