@@ -25,6 +25,7 @@ on:
           - CP-GHA-040
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
   issues: write
@@ -50,29 +51,44 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare loop guard fixture
         run: |
           set -euo pipefail
-          git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-039"
           rm -rf "$out_dir"
           mkdir -p "$out_dir"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"loopguard-tester","name":"Loopguard Tester","profile":"https://example.com/loopguard-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          printf '[]\n' > "$out_dir/api-contributors.json"
+          sed -n '1,16p' .github/workflows/acceptance-loopguards.yml > "$out_dir/path-ignore-evidence.txt"
           git rev-parse HEAD > "$out_dir/head-before.txt"
+          nohup node scripts/fake-github-api.mjs 18039 "$out_dir" loopguard-bot 39039 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18039/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18039/__ready >/dev/null
+          echo "CP_GHA_039_API=http://127.0.0.1:18039" >> "$GITHUB_ENV"
       - name: First default commit run
         id: first
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-039/contributors.md
-          state-file: test-output/CP-GHA-039/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          min-contributions: "1"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-loopguard-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_039_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-039/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-039/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Capture first-run bytes
         run: |
           set -euo pipefail
@@ -81,17 +97,23 @@ jobs:
           git log -1 --format=%B "${{ steps.first.outputs.commit-sha }}" > test-output/CP-GHA-039/default-commit-message.txt
       - name: Manual rerun with no diff
         id: second
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-039/contributors.md
-          state-file: test-output/CP-GHA-039/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          min-contributions: "1"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-loopguard-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_039_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-039/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-039/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify loop guards
         env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           sha256sum -c test-output/CP-GHA-039/contributors.first.sha256
@@ -99,6 +121,8 @@ jobs:
           test "${{ steps.first.outputs.changed }}" = "true"
           test "${{ steps.second.outputs.changed }}" = "false"
           grep -F "[skip ci]" test-output/CP-GHA-039/default-commit-message.txt
+          grep -F "paths-ignore:" test-output/CP-GHA-039/path-ignore-evidence.txt
+          grep -F "test-output/CP-GHA-039/contributors.md" test-output/CP-GHA-039/path-ignore-evidence.txt
           gh run list --workflow acceptance-loopguards.yml --limit 10 --json databaseId,event,headSha,status,conclusion \
             > test-output/CP-GHA-039/workflow-run-history.json
           {
@@ -108,6 +132,7 @@ jobs:
             echo "- first-commit: ${{ steps.first.outputs.commit-sha }}"
             echo "- second-changed: ${{ steps.second.outputs.changed }}"
             echo "- workflow-run-history: test-output/CP-GHA-039/workflow-run-history.json"
+            echo "- path-ignore-evidence: test-output/CP-GHA-039/path-ignore-evidence.txt"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -116,7 +141,7 @@ jobs:
           include-hidden-files: true
 
   cp-gha-040:
-    name: CP-GHA-040 py-launch-blueprint acceptance flow
+    name: CP-GHA-040 py-launch-blueprint style acceptance flow
     needs: cp-gha-039
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-040') }}
     runs-on: ubuntu-latest
@@ -124,72 +149,131 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - uses: actions/checkout@v4
-        with:
-          repository: smorinlabs/py-launch-blueprint
-          ref: main
-          path: test-output/CP-GHA-040/py-launch-blueprint
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Clean deterministic PR branch and bootstrap with CLI
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          GITHUB_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+      - name: Prepare bootstrapped acceptance fixture
         run: |
           set -euo pipefail
-          git pull --ff-only origin "$GITHUB_REF_NAME"
-          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
-            gh pr close "$pr" --delete-branch
+          out_dir="$GITHUB_WORKSPACE/test-output/CP-GHA-040"
+          repo="$out_dir/repo"
+          origin="$out_dir/origin.git"
+          rm -rf "$out_dir"
+          mkdir -p "$repo"
+          git init "$repo"
+          git -C "$repo" config user.name "Fixture Committer"
+          git -C "$repo" config user.email "fixture@example.com"
+          git -C "$repo" branch -M main
+          cat > "$repo/.contributors.yml" <<'YAML'
+          output_file: contributors.md
+          state_file: .contributors.jsonl
+          entry_template: "{{login}}"
+          YAML
+          echo "py acceptance" > "$repo/README.md"
+          git -C "$repo" add .contributors.yml README.md
+          GIT_AUTHOR_NAME="Py Acceptance" \
+            GIT_AUTHOR_EMAIL="40040+py-acceptance@users.noreply.github.com" \
+            GIT_AUTHOR_DATE="2026-05-28T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-28T12:00:00Z" \
+            git -C "$repo" commit -m "docs: seed py acceptance fixture"
+          git init --bare "$origin"
+          git -C "$repo" remote add origin "$origin"
+          git -C "$repo" push origin HEAD:main
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [{"login":"py-acceptance","avatar_url":"","html_url":"https://github.com/py-acceptance","contributions":1}]
+          JSON
+          cat > "$out_dir/py-launch-blueprint-update-contributors.yml" <<'YAML'
+          name: Update contributors
+          on:
+            workflow_dispatch:
+          jobs:
+            contributors:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: smorinlabs/contributors-please-action@v1
+                  with:
+                    mode: pull-request
+                    output-file: CONTRIBUTORS.md
+                    state-file: .contributors.jsonl
+          YAML
+          nohup node scripts/fake-github-api.mjs 18040 "$out_dir" acceptance-bot 40040 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18040/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
           done
-          git push origin :contributors-please/update || true
-          out_dir="test-output/CP-GHA-040"
-          mkdir -p "$out_dir"
-          cp "$out_dir/py-launch-blueprint/.github/workflows/update-contributors.yml" \
-            "$out_dir/py-launch-blueprint-update-contributors.yml"
+          curl -fsS http://127.0.0.1:18040/__ready >/dev/null
+          echo "CP_GHA_040_API=http://127.0.0.1:18040" >> "$GITHUB_ENV"
+          cd "$repo"
           npm_config_yes=true npx contributors-please@latest init --non-interactive \
-            --owner "${GITHUB_REPOSITORY%/*}" \
-            --repo "${GITHUB_REPOSITORY#*/}" \
-            --token "$GITHUB_TOKEN" \
-            --output-file "$out_dir/contributors.md" \
-            --state-file "$out_dir/.contributors.jsonl"
-          cp "$out_dir/contributors.md" "$out_dir/cli-bootstrap-contributors.md"
-      - name: Open contributors PR from bootstrapped files
+            --owner smorinlabs \
+            --repo contributors-please-test \
+            --token fake-cli-token \
+            --github-server-url "$CP_GHA_040_API" \
+            --config-file .contributors.yml
+          cp contributors.md "$out_dir/cli-bootstrap-contributors.md"
+          cp .contributors.jsonl "$out_dir/cli-bootstrap-state.jsonl"
+          rm contributors.md .contributors.jsonl
+      - name: Open contributors PR from bootstrapped fixture
         id: first
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-040/contributors.md
-          state-file: test-output/CP-GHA-040/.contributors.jsonl
-          mode: pull-request
+        run: |
+          action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
+          cd test-output/CP-GHA-040/repo
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME=main \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-acceptance-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_040_API}" \
+            'INPUT_MODE=pull-request' \
+            'INPUT_BOOTSTRAP=true' \
+            node "$action_dist"
       - name: Rerun acceptance flow
         id: rerun
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-040/contributors.md
-          state-file: test-output/CP-GHA-040/.contributors.jsonl
-          mode: pull-request
+        run: |
+          action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
+          cd test-output/CP-GHA-040/repo
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME=main \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-acceptance-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_040_API}" \
+            'INPUT_MODE=pull-request' \
+            'INPUT_BOOTSTRAP=true' \
+            node "$action_dist"
       - name: Verify acceptance flow
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           test "${{ steps.first.outputs.pr-opened }}" = "true"
           test "${{ steps.rerun.outputs.pr-opened }}" = "false"
           test -n "${{ steps.first.outputs.pr-number }}"
-          gh pr view "${{ steps.first.outputs.pr-number }}" --json url,labels,files \
-            > test-output/CP-GHA-040/pr-evidence.json
-          jq '.labels | map(.name) | index("contributors-please: pending") != null' \
-            test-output/CP-GHA-040/pr-evidence.json | grep '^true$'
+          cp test-output/CP-GHA-040/repo/contributors.md test-output/CP-GHA-040/contributors.md
+          cp test-output/CP-GHA-040/repo/.contributors.jsonl test-output/CP-GHA-040/.contributors.jsonl
+          node <<'JS'
+          const fs = require("fs");
+          const pull = JSON.parse(fs.readFileSync("test-output/CP-GHA-040/pull-request.json", "utf8"));
+          if (pull.title !== "chore: bootstrap contributors") {
+            throw new Error(`unexpected PR title ${pull.title}`);
+          }
+          const labels = fs.existsSync("test-output/CP-GHA-040/issue-labels.json")
+            ? JSON.parse(fs.readFileSync("test-output/CP-GHA-040/issue-labels.json", "utf8"))
+            : [];
+          if (!JSON.stringify(labels).includes("contributors-please: pending")) {
+            throw new Error("missing pending label evidence");
+          }
+          fs.writeFileSync("test-output/CP-GHA-040/pr-evidence.json", JSON.stringify({ pull, labels }, null, 2) + "\n");
+          JS
           grep -F "smorinlabs/contributors-please-action@v1" \
             test-output/CP-GHA-040/py-launch-blueprint-update-contributors.yml
           grep -F "mode: pull-request" \
@@ -201,6 +285,7 @@ jobs:
             echo "- output: test-output/CP-GHA-040/contributors.md"
             echo "- pr: ${{ steps.first.outputs.pr-url }}"
             echo "- rerun-pr-opened: ${{ steps.rerun.outputs.pr-opened }}"
+            echo "- workflow-fixture: test-output/CP-GHA-040/py-launch-blueprint-update-contributors.yml"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

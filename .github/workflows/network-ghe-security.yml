@@ -530,30 +530,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Clean branch and prepare permission API
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+      - name: Prepare permission API and local pull-request origin
         run: |
           set -euo pipefail
-          git pull --ff-only origin "$GITHUB_REF_NAME"
-          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
-            gh pr close "$pr" --delete-branch
-          done
-          git push origin :contributors-please/update || true
           out_dir="test-output/CP-GHA-043"
+          repo="$out_dir/repo"
+          origin="$out_dir/origin.git"
           rm -rf "$out_dir"
-          mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          mkdir -p "$repo"
+          git init "$repo"
+          git -C "$repo" config user.name "Fixture Committer"
+          git -C "$repo" config user.email "fixture@example.com"
+          git -C "$repo" branch -M main
+          cat > "$repo/.contributors.yml" <<'YAML'
+          output_file: control-contributors.md
+          state_file: .contributors.jsonl
+          entry_template: "{{login}}"
+          YAML
+          cat > "$repo/.contributors.jsonl" <<'JSONL'
           {"login":"permission-control","name":"Permission Control","profile":"https://example.com/permission-control","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          git -C "$repo" add .contributors.yml .contributors.jsonl
+          GIT_AUTHOR_DATE="2026-05-28T12:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-28T12:00:00Z" \
+            git -C "$repo" commit -m "test: seed permission fixture"
+          git init --bare "$origin"
+          git -C "$repo" remote add origin "$origin"
+          git -C "$repo" push origin HEAD:main
           cat > "$out_dir/server.mjs" <<'JS'
           import http from "node:http";
           import fs from "node:fs";
@@ -563,7 +571,7 @@ jobs:
             fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
             if (url.pathname === "/user") return json(res, { login: "permission-bot", id: 43043 });
             if (url.pathname.endsWith("/contributors")) return json(res, []);
-            if (url.pathname.includes("/labels/contributors-please%3A%20pending")) {
+            if (url.pathname.includes("/labels/")) {
               return json(res, { message: "not found" }, 404);
             }
             if (url.pathname.endsWith("/labels") && req.method === "POST") {
@@ -586,29 +594,34 @@ jobs:
             sleep 0.25
           done
           curl -fsS http://127.0.0.1:18043/user >/dev/null
+          echo "CP_GHA_043_API=http://127.0.0.1:18043" >> "$GITHUB_ENV"
       - name: "EXPECTED FAILURE: labeling permission denied"
         id: expected_failure
         continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          github-api-url: http://127.0.0.1:18043
-          output-file: test-output/CP-GHA-043/control-contributors.md
-          state-file: test-output/CP-GHA-043/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
+          cd test-output/CP-GHA-043/repo
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME=main \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-permission-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_043_API}" \
+            'INPUT_MODE=pull-request' \
+            node "$action_dist"
       - name: Verify permission failure and secret scan
-        env:
-          PAT: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           test "${{ steps.expected_failure.outcome }}" = "failure"
-          if grep -R -F "$PAT" test-output/CP-GHA-043; then
-            echo "PAT leaked into generated files" >&2
+          cp test-output/CP-GHA-043/repo/control-contributors.md test-output/CP-GHA-043/control-contributors.md
+          cp test-output/CP-GHA-043/repo/.contributors.jsonl test-output/CP-GHA-043/.contributors.jsonl
+          if grep -R -F "fake-permission-token" test-output/CP-GHA-043; then
+            echo "token leaked into generated files" >&2
             exit 1
           fi
           grep -F "POST" test-output/CP-GHA-043/api.log
+          grep -F "/labels" test-output/CP-GHA-043/api.log
           {
             echo "expected_failure: true"
             echo "expected_error: GitHub label creation failed: 403"
