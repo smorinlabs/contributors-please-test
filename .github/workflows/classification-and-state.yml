@@ -45,54 +45,80 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify required secrets
-        run: |
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}"
       - name: Prepare discovered contributor fixture
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
-          login="$(gh api user --jq .login)"
-          id="$(gh api user --jq .id)"
-          mkdir -p src docs tests test-output/CP-GHA-007
-          printf 'export const cpGha007 = "%s";\n' "$GITHUB_RUN_ID" > "src/cp-gha-007-${GITHUB_RUN_ID}.ts"
-          printf '# CP-GHA-007 %s\n' "$GITHUB_RUN_ID" > "docs/cp-gha-007-${GITHUB_RUN_ID}.md"
-          printf 'test("cp-gha-007", () => expect(true).toBe(true));\n' > "tests/cp-gha-007-${GITHUB_RUN_ID}.test.ts"
-          git add src docs tests
-          git -c user.name="$login" \
-            -c user.email="$id+$login@users.noreply.github.com" \
-            commit -m "test: cp-gha-007 default classifier ${GITHUB_RUN_ID}"
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-007"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir" src docs tests
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [{"login":"default-classifier-tester","contributions":3,"avatar_url":"https://example.com/default.png","html_url":"https://example.com/default-classifier-tester"}]
+          JSON
+          commit_fixture() {
+            local path="$1"
+            local content="$2"
+            local message="$3"
+            printf '%s\n' "$content" > "$path"
+            git add "$path"
+            GIT_AUTHOR_DATE="2026-05-01T12:00:00Z" \
+              GIT_COMMITTER_DATE="2026-05-01T12:00:00Z" \
+              git -c user.name="default-classifier-tester" \
+                -c user.email="15007+default-classifier-tester@users.noreply.github.com" \
+                commit -m "$message"
+          }
+          commit_fixture "src/cp-gha-007.ts" "export const cpGha007 = true;" "test: cp-gha-007 code fixture"
+          commit_fixture "docs/cp-gha-007.md" "# CP-GHA-007" "test: cp-gha-007 docs fixture"
+          commit_fixture "tests/cp-gha-007.test.ts" "test('cp-gha-007', () => expect(true).toBe(true));" "test: cp-gha-007 quality fixture"
+          nohup node scripts/fake-github-api.mjs 18007 "$out_dir" render-bot-007 14007 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18007/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18007/__ready >/dev/null
+          echo "CP_GHA_007_API=http://127.0.0.1:18007" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          app-id: ${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}
-          private-key: ${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}
-          output-file: test-output/CP-GHA-007/contributors.md
-          state-file: test-output/CP-GHA-007/.contributors.jsonl
-          mode: commit
-          bootstrap: "true"
-          entry-template: "{{login}} {{title}}"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_007_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-007/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-007/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_BOOTSTRAP=true' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}} {{commits}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify default classifier
         run: |
           set -euo pipefail
-          grep -F "Rockstar" test-output/CP-GHA-007/contributors.md
+          test "${{ steps.contributors.outputs.token-source }}" = "pat"
+          grep -F "default-classifier-tester Rockstar 3" test-output/CP-GHA-007/contributors.md
+          node <<'JS'
+          const fs = require("fs");
+          const record = JSON.parse(fs.readFileSync("test-output/CP-GHA-007/.contributors.jsonl", "utf8").trim());
+          const expected = JSON.stringify(["code", "docs", "quality"]);
+          if (record.title !== "Rockstar" || JSON.stringify(record.categories) !== expected) {
+            throw new Error(`unexpected default classification: ${JSON.stringify(record)}`);
+          }
+          JS
           {
             echo "### CP-GHA-007"
             echo ""
             echo "- output: test-output/CP-GHA-007/contributors.md"
             echo "- token-source: ${{ steps.contributors.outputs.token-source }}"
+            echo "- default-classifier: no config file was loaded"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -113,17 +139,19 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-008"
-          mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
-          {"login":"precedence-tester","name":"Precedence Tester","profile":"https://example.com/precedence-tester","avatar":"","source":"commit","pinned":false,"categories":["first"],"title":"First Match","emoji":"first","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
-          JSONL
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir" shared misc
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [
+            {"login":"catchall-tester","contributions":1,"avatar_url":"","html_url":"https://example.com/catchall-tester"},
+            {"login":"precedence-tester","contributions":1,"avatar_url":"","html_url":"https://example.com/precedence-tester"}
+          ]
+          JSON
           cat > "$out_dir/.contributors.yml" <<'YAML'
           classification:
             categories:
@@ -142,25 +170,69 @@ jobs:
             combinations: []
             multi_category_resolution: priority
           entry_template: "{{login}} {{title}}"
+          sort: alphabetical
           YAML
+          printf 'first\n' > shared/cp-gha-008.txt
+          git add shared/cp-gha-008.txt
+          GIT_AUTHOR_DATE="2026-05-08T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-08T12:00:00Z" \
+            git -c user.name="precedence-tester" \
+              -c user.email="15008+precedence-tester@users.noreply.github.com" \
+              commit -m "test: cp-gha-008 precedence fixture"
+          printf 'other\n' > misc/cp-gha-008.txt
+          git add misc/cp-gha-008.txt
+          GIT_AUTHOR_DATE="2026-05-08T12:01:00Z" \
+            GIT_COMMITTER_DATE="2026-05-08T12:01:00Z" \
+            git -c user.name="catchall-tester" \
+              -c user.email="15009+catchall-tester@users.noreply.github.com" \
+              commit -m "test: cp-gha-008 catchall fixture"
+          nohup node scripts/fake-github-api.mjs 18008 "$out_dir" render-bot-008 14008 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18008/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18008/__ready >/dev/null
+          echo "CP_GHA_008_API=http://127.0.0.1:18008" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-008/contributors.md
-          state-file: test-output/CP-GHA-008/.contributors.jsonl
-          config-file: test-output/CP-GHA-008/.contributors.yml
-          mode: commit
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_008_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-008/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-008/.contributors.jsonl' \
+            'INPUT_CONFIG-FILE=test-output/CP-GHA-008/.contributors.yml' \
+            'INPUT_MODE=commit' \
+            'INPUT_BOOTSTRAP=true' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify custom config accepted
         run: |
           set -euo pipefail
+          grep -F "catchall-tester Other Match" test-output/CP-GHA-008/contributors.md
           grep -F "precedence-tester First Match" test-output/CP-GHA-008/contributors.md
+          node <<'JS'
+          const fs = require("fs");
+          const records = fs.readFileSync("test-output/CP-GHA-008/.contributors.jsonl", "utf8").trim().split(/\n/).map(JSON.parse);
+          const byLogin = Object.fromEntries(records.map(record => [record.login, record]));
+          if (JSON.stringify(byLogin["precedence-tester"].categories) !== JSON.stringify(["first"])) {
+            throw new Error("precedence path was not claimed by first matching category");
+          }
+          if (JSON.stringify(byLogin["catchall-tester"].categories) !== JSON.stringify(["other"])) {
+            throw new Error("unmatched path did not use configured default category");
+          }
+          JS
           {
             echo "### CP-GHA-008"
             echo ""
             echo "- output: test-output/CP-GHA-008/contributors.md"
+            echo "- precedence: shared path matched the first category only"
+            echo "- catch-all: misc path used the configured default category"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -181,38 +253,125 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-009"
-          mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
-          {"login":"combo-tester","name":"Combo Tester","profile":"https://example.com/combo-tester","avatar":"","source":"commit","pinned":false,"categories":["docs","quality","code"],"title":"Rockstar","emoji":"star","commits":3,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
-          JSONL
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir" docs tests src
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [
+            {"login":"combine-tester","contributions":2,"avatar_url":"","html_url":"https://example.com/combine-tester"},
+            {"login":"combo-tester","contributions":3,"avatar_url":"","html_url":"https://example.com/combo-tester"},
+            {"login":"single-tester","contributions":1,"avatar_url":"","html_url":"https://example.com/single-tester"}
+          ]
+          JSON
           cat > "$out_dir/.contributors.yml" <<'YAML'
+          classification:
+            categories:
+              - id: docs
+                label: Docs Label
+                emoji: docs
+                paths: ["docs/**"]
+              - id: quality
+                label: Quality Label
+                emoji: test
+                paths: ["tests/**"]
+            default:
+              id: code
+              label: Code Label
+              emoji: code
+            combinations:
+              - id: first-combo
+                label: First Combo
+                emoji: first
+                when: ["docs", "quality"]
+              - id: all-three
+                label: All Three
+                emoji: star
+                when: ["docs", "quality", "code"]
+            multi_category_resolution: combine
           entry_template: "{{login}} {{title}}"
+          sort: alphabetical
           YAML
+          commit_fixture() {
+            local login="$1"
+            local id="$2"
+            local date="$3"
+            local path="$4"
+            local content="$5"
+            local message="$6"
+            printf '%s\n' "$content" > "$path"
+            git add "$path"
+            GIT_AUTHOR_DATE="${date}T12:00:00Z" \
+              GIT_COMMITTER_DATE="${date}T12:00:00Z" \
+              git -c user.name="$login" \
+                -c user.email="${id}+${login}@users.noreply.github.com" \
+                commit -m "$message"
+          }
+          commit_fixture "combo-tester" 15010 "2026-05-09" "docs/cp-gha-009-combo.md" "combo docs" "test: cp-gha-009 combo docs"
+          commit_fixture "combo-tester" 15010 "2026-05-10" "tests/cp-gha-009-combo.test.ts" "combo tests" "test: cp-gha-009 combo tests"
+          commit_fixture "combo-tester" 15010 "2026-05-11" "src/cp-gha-009-combo.ts" "combo code" "test: cp-gha-009 combo code"
+          commit_fixture "combine-tester" 15011 "2026-05-12" "docs/cp-gha-009-combine.md" "combine docs" "test: cp-gha-009 combine docs"
+          commit_fixture "combine-tester" 15011 "2026-05-13" "src/cp-gha-009-combine.ts" "combine code" "test: cp-gha-009 combine code"
+          commit_fixture "single-tester" 15012 "2026-05-14" "docs/cp-gha-009-single.md" "single docs" "test: cp-gha-009 single docs"
+          nohup node scripts/fake-github-api.mjs 18009 "$out_dir" render-bot-009 14009 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18009/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18009/__ready >/dev/null
+          echo "CP_GHA_009_API=http://127.0.0.1:18009" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-009/contributors.md
-          state-file: test-output/CP-GHA-009/.contributors.jsonl
-          config-file: test-output/CP-GHA-009/.contributors.yml
-          mode: commit
-          min-contributions: "999999"
-      - name: Verify title
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_009_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-009/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-009/.contributors.jsonl' \
+            'INPUT_CONFIG-FILE=test-output/CP-GHA-009/.contributors.yml' \
+            'INPUT_MODE=commit' \
+            'INPUT_BOOTSTRAP=true' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: Verify title resolution
         run: |
           set -euo pipefail
-          grep -F "combo-tester Rockstar" test-output/CP-GHA-009/contributors.md
+          grep -F "combine-tester Docs Label / Code Label" test-output/CP-GHA-009/contributors.md
+          grep -F "combo-tester First Combo" test-output/CP-GHA-009/contributors.md
+          grep -F "single-tester Docs Label" test-output/CP-GHA-009/contributors.md
+          if grep -F "combo-tester All Three" test-output/CP-GHA-009/contributors.md; then
+            echo "later combination rule won unexpectedly" >&2
+            exit 1
+          fi
+          node <<'JS'
+          const fs = require("fs");
+          const records = fs.readFileSync("test-output/CP-GHA-009/.contributors.jsonl", "utf8").trim().split(/\n/).map(JSON.parse);
+          const byLogin = Object.fromEntries(records.map(record => [record.login, record]));
+          const expected = {
+            "combine-tester": "Docs Label / Code Label",
+            "combo-tester": "First Combo",
+            "single-tester": "Docs Label",
+          };
+          for (const [login, title] of Object.entries(expected)) {
+            if (byLogin[login]?.title !== title) {
+              throw new Error(`${login} title mismatch: ${byLogin[login]?.title}`);
+            }
+          }
+          JS
           {
             echo "### CP-GHA-009"
             echo ""
             echo "- output: test-output/CP-GHA-009/contributors.md"
+            echo "- first matching combination rule won for combo-tester"
+            echo "- multi-category combine mode rendered combine-tester"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -233,13 +392,12 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-010"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"classifier-control","name":"Classifier Control","profile":"https://example.com/classifier-control","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
@@ -247,37 +405,63 @@ jobs:
           cat > "$out_dir/invalid.yml" <<'YAML'
           classifier: reviews
           YAML
+          nohup node scripts/fake-github-api.mjs 18010 "$out_dir" render-bot-010 14010 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18010/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18010/__ready >/dev/null
+          echo "CP_GHA_010_API=http://127.0.0.1:18010" >> "$GITHUB_ENV"
       - name: Run valid control
         id: control
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-010/control-contributors.md
-          state-file: test-output/CP-GHA-010/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_010_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-010/control-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-010/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: invalid classifier"
         id: expected_failure
-        continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-010/contributors.md
-          state-file: test-output/CP-GHA-010/.contributors.jsonl
-          config-file: test-output/CP-GHA-010/invalid.yml
-          mode: commit
+        run: |
+          set +e
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_010_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-010/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-010/.contributors.jsonl' \
+            'INPUT_CONFIG-FILE=test-output/CP-GHA-010/invalid.yml' \
+            'INPUT_MODE=commit' \
+            node .github/actions/contributors-please-action/dist/index.js > test-output/CP-GHA-010/expected-failure.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Assert expected failure occurred
         run: |
           set -euo pipefail
+          test "${{ steps.expected_failure.outputs.status }}" != "0"
+          grep -F 'Unsupported classifier "reviews"; valid values for v1: path' test-output/CP-GHA-010/expected-failure.log
+          grep -F "classifier-control" test-output/CP-GHA-010/control-contributors.md
+          test ! -f test-output/CP-GHA-010/contributors.md
           {
             echo "expected_failure: true"
-            echo "expected_error: Unsupported classifier"
-            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo 'expected_error: Unsupported classifier "reviews"; valid values for v1: path'
+            echo "observed_status: ${{ steps.expected_failure.outputs.status }}"
             echo "control_output: test-output/CP-GHA-010/control-contributors.md"
             echo "artifact: cp-gha-010"
-          } > test-output/CP-GHA-010/expected-failure.log
-          test "${{ steps.expected_failure.outcome }}" = "failure"
+          } >> test-output/CP-GHA-010/expected-failure.log
           cat test-output/CP-GHA-010/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -298,36 +482,68 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-011"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"declared-designer","name":"Declared Designer","profile":"https://example.com/declared-designer","avatar":"","source":"declared","pinned":true,"categories":["design"],"title":"Design Lead","emoji":"design","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          cp "$out_dir/.contributors.jsonl" "$out_dir/state.before.jsonl"
+          nohup node scripts/fake-github-api.mjs 18011 "$out_dir" render-bot-011 14011 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18011/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18011/__ready >/dev/null
+          echo "CP_GHA_011_API=http://127.0.0.1:18011" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-011/contributors.md
-          state-file: test-output/CP-GHA-011/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}} {{commits}}"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_011_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-011/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-011/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}} {{commits}}' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: Run idempotency check
+        id: second_run
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_011_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-011/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-011/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}} {{commits}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify declared pinned record
         run: |
           set -euo pipefail
+          test "${{ steps.second_run.outputs.changed }}" = "false"
           grep -F "declared-designer Design Lead 0" test-output/CP-GHA-011/contributors.md
+          cmp test-output/CP-GHA-011/state.before.jsonl test-output/CP-GHA-011/.contributors.jsonl
           grep -F '"source":"declared"' test-output/CP-GHA-011/.contributors.jsonl
           grep -F '"pinned":true' test-output/CP-GHA-011/.contributors.jsonl
           {
             echo "### CP-GHA-011"
             echo ""
             echo "- output: test-output/CP-GHA-011/contributors.md"
+            echo "- second-run-changed: ${{ steps.second_run.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -343,56 +559,81 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify required secrets
-        run: |
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}"
       - name: Prepare declared state and matching commit
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
-          login="$(gh api user --jq .login)"
-          id="$(gh api user --jq .id)"
           out_dir="test-output/CP-GHA-012"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir" src
-          cat > "$out_dir/.contributors.jsonl" <<JSONL
-          {"login":"$login","name":"$login","profile":"https://github.com/$login","avatar":"","source":"declared","pinned":true,"categories":["design"],"title":"Declared Title","emoji":"design","commits":0,"first_seen":"2026-05-01","last_updated":"2026-05-01"}
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [{"login":"declared-later","contributions":1,"avatar_url":"","html_url":"https://example.com/declared-later"}]
+          JSON
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"declared-later","name":"Declared Later","profile":"https://example.com/declared-later","avatar":"","source":"declared","pinned":true,"categories":["design"],"title":"Declared Title","emoji":"design","commits":0,"first_seen":"2026-05-01","last_updated":"2026-05-01"}
           JSONL
-          printf 'export const cpGha012 = "%s";\n' "$GITHUB_RUN_ID" > "src/cp-gha-012-${GITHUB_RUN_ID}.ts"
-          git add src
-          git -c user.name="$login" \
-            -c user.email="$id+$login@users.noreply.github.com" \
-            commit -m "test: cp-gha-012 declared contributor appears ${GITHUB_RUN_ID}"
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          cp "$out_dir/.contributors.jsonl" "$out_dir/state.before.jsonl"
+          printf 'export const cpGha012 = true;\n' > src/cp-gha-012.ts
+          git add src/cp-gha-012.ts
+          GIT_AUTHOR_DATE="2026-05-20T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-20T12:00:00Z" \
+            git -c user.name="declared-later" \
+              -c user.email="15012+declared-later@users.noreply.github.com" \
+              commit -m "test: cp-gha-012 declared contributor appears"
+          nohup node scripts/fake-github-api.mjs 18012 "$out_dir" render-bot-012 14012 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18012/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18012/__ready >/dev/null
+          echo "CP_GHA_012_API=http://127.0.0.1:18012" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          app-id: ${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}
-          private-key: ${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}
-          output-file: test-output/CP-GHA-012/contributors.md
-          state-file: test-output/CP-GHA-012/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}} {{commits}}"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_012_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-012/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-012/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}} {{commits}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify declared source is preserved
         run: |
           set -euo pipefail
-          grep -F '"source":"declared"' test-output/CP-GHA-012/.contributors.jsonl
-          grep -F '"pinned":true' test-output/CP-GHA-012/.contributors.jsonl
-          grep -F "Declared Title" test-output/CP-GHA-012/contributors.md
+          grep -F "declared-later Declared Title 1" test-output/CP-GHA-012/contributors.md
+          node <<'JS'
+          const fs = require("fs");
+          const before = JSON.parse(fs.readFileSync("test-output/CP-GHA-012/state.before.jsonl", "utf8").trim());
+          const after = JSON.parse(fs.readFileSync("test-output/CP-GHA-012/.contributors.jsonl", "utf8").trim());
+          for (const key of ["login", "source", "pinned", "title", "emoji", "first_seen"]) {
+            if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
+              throw new Error(`${key} changed unexpectedly`);
+            }
+          }
+          if (JSON.stringify(after.categories) !== JSON.stringify(["design"])) {
+            throw new Error(`categories changed unexpectedly: ${JSON.stringify(after.categories)}`);
+          }
+          if (after.commits !== 1 || after.last_updated === before.last_updated) {
+            throw new Error(`commit fields did not update as expected: ${JSON.stringify(after)}`);
+          }
+          JS
           {
             echo "### CP-GHA-012"
             echo ""
             echo "- output: test-output/CP-GHA-012/contributors.md"
+            echo "- source and pinned fields preserved after commit discovery"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -408,49 +649,89 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify required secrets
-        run: |
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}"
       - name: Prepare stale pinned state
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
-          login="$(gh api user --jq .login)"
           out_dir="test-output/CP-GHA-013"
-          mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<JSONL
-          {"login":"$login","name":"$login","profile":"https://github.com/$login","avatar":"","source":"commit","pinned":true,"categories":["design"],"title":"Design Lead","emoji":"design","commits":1,"first_seen":"2026-05-01","last_updated":"2026-05-01"}
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir" src
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [{"login":"stale-pinned","contributions":1,"avatar_url":"","html_url":"https://example.com/stale-pinned"}]
+          JSON
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"stale-pinned","name":"Stale Pinned","profile":"https://example.com/stale-pinned","avatar":"","source":"commit","pinned":true,"categories":["design"],"title":"Design Lead","emoji":"design","commits":1,"first_seen":"2026-05-01","last_updated":"2026-05-01"}
           JSONL
-      - name: Run contributors-please
-        id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          app-id: ${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}
-          private-key: ${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}
-          output-file: test-output/CP-GHA-013/contributors.md
-          state-file: test-output/CP-GHA-013/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          pin-warn-on-stale: "true"
+          printf 'export const cpGha013 = true;\n' > src/cp-gha-013.ts
+          git add src/cp-gha-013.ts
+          GIT_AUTHOR_DATE="2026-05-21T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-21T12:00:00Z" \
+            git -c user.name="stale-pinned" \
+              -c user.email="15013+stale-pinned@users.noreply.github.com" \
+              commit -m "test: cp-gha-013 stale pinned fixture"
+          nohup node scripts/fake-github-api.mjs 18013 "$out_dir" render-bot-013 14013 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18013/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18013/__ready >/dev/null
+          echo "CP_GHA_013_API=http://127.0.0.1:18013" >> "$GITHUB_ENV"
+      - name: Run with stale pin warning enabled
+        id: warn_enabled
+        run: |
+          env \
+            GITHUB_STEP_SUMMARY="test-output/CP-GHA-013/warn-enabled-summary.md" \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_013_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-013/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-013/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_PIN-WARN-ON-STALE=true' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: Run with stale pin warning disabled
+        id: warn_disabled
+        run: |
+          env \
+            GITHUB_STEP_SUMMARY="test-output/CP-GHA-013/warn-disabled-summary.md" \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_013_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-013/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-013/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_PIN-WARN-ON-STALE=false' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify warning
         run: |
           set -euo pipefail
-          grep -F "Pinned contributor" "$GITHUB_STEP_SUMMARY"
-          grep -F "Design Lead" test-output/CP-GHA-013/contributors.md
+          grep -F "Pinned contributor" test-output/CP-GHA-013/warn-enabled-summary.md
+          if grep -F "Pinned contributor" test-output/CP-GHA-013/warn-disabled-summary.md; then
+            echo "disabled pin warning run still emitted stale warning" >&2
+            exit 1
+          fi
+          grep -F "stale-pinned Design Lead" test-output/CP-GHA-013/contributors.md
+          grep -F '"pinned":true' test-output/CP-GHA-013/.contributors.jsonl
           {
             echo "### CP-GHA-013"
             echo ""
             echo "- output: test-output/CP-GHA-013/contributors.md"
+            echo "- warning-enabled-summary: test-output/CP-GHA-013/warn-enabled-summary.md"
+            echo "- warning-disabled-summary: test-output/CP-GHA-013/warn-disabled-summary.md"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -471,36 +752,75 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-019"
-          mkdir -p "$out_dir"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir" src
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [{"login":"jsonl-new","contributions":1,"avatar_url":"","html_url":"https://example.com/jsonl-new"}]
+          JSON
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
-          {"login":"jsonl-state-tester","name":"JSONL State Tester","profile":"https://example.com/jsonl-state-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"jsonl-existing","name":"JSONL Existing","profile":"https://example.com/jsonl-existing","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-01","last_updated":"2026-05-01"}
           JSONL
+          printf 'export const cpGha019 = true;\n' > src/cp-gha-019.ts
+          git add src/cp-gha-019.ts
+          GIT_AUTHOR_DATE="2026-05-22T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-22T12:00:00Z" \
+            git -c user.name="jsonl-new" \
+              -c user.email="15019+jsonl-new@users.noreply.github.com" \
+              commit -m "test: cp-gha-019 jsonl merge fixture"
+          nohup node scripts/fake-github-api.mjs 18019 "$out_dir" render-bot-019 14019 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18019/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18019/__ready >/dev/null
+          echo "CP_GHA_019_API=http://127.0.0.1:18019" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-019/contributors.md
-          state-file: test-output/CP-GHA-019/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_019_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-019/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-019/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_SORT=alphabetical' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify JSONL state
         run: |
           set -euo pipefail
-          node -e 'const fs=require("fs"); for (const line of fs.readFileSync("test-output/CP-GHA-019/.contributors.jsonl","utf8").trim().split(/\n/)) JSON.parse(line);'
-          grep -F "jsonl-state-tester" test-output/CP-GHA-019/contributors.md
+          node <<'JS'
+          const fs = require("fs");
+          const records = fs.readFileSync("test-output/CP-GHA-019/.contributors.jsonl", "utf8").trim().split(/\n/).map(JSON.parse);
+          const byLogin = Object.fromEntries(records.map(record => [record.login, record]));
+          if (records.length !== 2 || !byLogin["jsonl-existing"] || !byLogin["jsonl-new"]) {
+            throw new Error(`unexpected records: ${JSON.stringify(records)}`);
+          }
+          if (byLogin["jsonl-existing"].first_seen !== "2026-05-01") {
+            throw new Error("existing first_seen was not preserved");
+          }
+          if (byLogin["jsonl-new"].commits !== 1 || byLogin["jsonl-new"].source !== "commit") {
+            throw new Error("new contributor was not merged from git discovery");
+          }
+          JS
+          grep -F "jsonl-existing" test-output/CP-GHA-019/contributors.md
+          grep -F "jsonl-new" test-output/CP-GHA-019/contributors.md
           {
             echo "### CP-GHA-019"
             echo ""
             echo "- output: test-output/CP-GHA-019/contributors.md"
+            echo "- state: test-output/CP-GHA-019/.contributors.jsonl"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -521,37 +841,53 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-020"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"declared-first-seen","name":"Declared First Seen","profile":"https://example.com/declared-first-seen","avatar":"","source":"declared","pinned":true,"categories":[],"title":"Declared Contributor","commits":0,"last_updated":"2026-05-01"}
           JSONL
+          nohup node scripts/fake-github-api.mjs 18020 "$out_dir" render-bot-020 14020 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18020/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18020/__ready >/dev/null
+          echo "CP_GHA_020_API=http://127.0.0.1:18020" >> "$GITHUB_ENV"
       - name: Run contributors-please
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-020/contributors.md
-          state-file: test-output/CP-GHA-020/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_STEP_SUMMARY="test-output/CP-GHA-020/action-summary.md" \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_020_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-020/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-020/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify first_seen auto-fill
         run: |
           set -euo pipefail
           grep -F '"first_seen":"' test-output/CP-GHA-020/.contributors.jsonl
-          grep -F "declared-first-seen" test-output/CP-GHA-020/contributors.md
-          grep -F "Declared contributor \`declared-first-seen\` had no \`first_seen\`" "$GITHUB_STEP_SUMMARY"
+          grep -F "declared-first-seen Declared Contributor" test-output/CP-GHA-020/contributors.md
+          grep -F "Declared contributor" test-output/CP-GHA-020/action-summary.md
+          grep -F "declared-first-seen" test-output/CP-GHA-020/action-summary.md
           {
             echo "### CP-GHA-020"
             echo ""
             echo "- output: test-output/CP-GHA-020/contributors.md"
+            echo "- action-summary: test-output/CP-GHA-020/action-summary.md"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

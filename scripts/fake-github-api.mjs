@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
     return json(res, { login, id });
   }
   if (url.pathname.endsWith("/contributors")) {
-    return json(res, []);
+    return json(res, readContributorsFixture());
   }
 
   json(res, { error: "not found", path: url.pathname }, 404);
@@ -42,4 +42,12 @@ server.listen(port, "127.0.0.1");
 function json(res, value, status = 200) {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(value));
+}
+
+function readContributorsFixture() {
+  const path = `${outDir}/api-contributors.json`;
+  if (!fs.existsSync(path)) {
+    return [];
+  }
+  return JSON.parse(fs.readFileSync(path, "utf8"));
 }
