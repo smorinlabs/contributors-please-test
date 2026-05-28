@@ -382,6 +382,35 @@ jobs:
           mode: check
           entry-template: "{{login}}"
           min-contributions: "1"
+      - name: Exercise PR comment path with action entrypoint
+        run: |
+          set -euo pipefail
+          rm -f test-output/CP-GHA-024/comment-body.md
+          set +e
+          env \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=pull_request \
+            GITHUB_EVENT_PATH="$PWD/test-output/CP-GHA-024/event.json" \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_024_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-024/control-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-024/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
+            node .github/actions/contributors-please-action/dist/index.js
+          status="$?"
+          set -e
+          test "$status" != "0"
+          grep -F "contributors-please found stale generated contributor files" test-output/CP-GHA-024/comment-body.md
+          {
+            echo "expected_failure: true"
+            echo "expected_error: contributors-please check failed"
+            echo "observed_status: $status"
+            echo "comment_body: test-output/CP-GHA-024/comment-body.md"
+          } > test-output/CP-GHA-024/expected-failure.log
       - name: Prepare no-diff output
         run: printf 'check-mode-tester\n' > test-output/CP-GHA-024/control-contributors.md
       - name: No-diff check-mode run
@@ -404,6 +433,7 @@ jobs:
           test "${{ steps.expected_failure.outcome }}" = "failure"
           test "${{ steps.no_diff.outputs.changed }}" = "false"
           grep -F "contributors-please found stale generated contributor files" test-output/CP-GHA-024/comment-body.md
+          grep -F "expected_failure: true" test-output/CP-GHA-024/expected-failure.log
           git diff --exit-code -- test-output/CP-GHA-024/control-contributors.md
           {
             echo "### CP-GHA-024"
