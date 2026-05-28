@@ -47,8 +47,6 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
@@ -58,28 +56,46 @@ jobs:
           mkdir -p "$out_dir"
           git rev-parse HEAD > "$out_dir/head-before.txt"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
-          {"login":"commit-mode-tester","name":"Commit Mode Tester","profile":"https://example.com/commit-mode-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"commit-mode-tester","name":"Commit Mode Tester","profile":"https://example.com/commit-mode-tester","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          nohup node scripts/fake-github-api.mjs 18021 "$out_dir" commit-mode-bot 21021 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18021/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18021/__ready >/dev/null
+          echo "CP_GHA_021_API=http://127.0.0.1:18021" >> "$GITHUB_ENV"
       - name: First commit-mode run
         id: first
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-021/contributors.md
-          state-file: test-output/CP-GHA-021/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_021_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-021/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-021/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Second commit-mode run
         id: second
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-021/contributors.md
-          state-file: test-output/CP-GHA-021/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_021_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-021/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-021/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify commit-mode behavior
         run: |
           set -euo pipefail
@@ -112,77 +128,93 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Clean deterministic PR branch
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+      - name: Prepare local PR fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
-          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
-            gh pr close "$pr" --delete-branch
-          done
-          git push origin :contributors-please/update || true
-      - name: Prepare first PR fixture
-        run: |
-          set -euo pipefail
           out_dir="test-output/CP-GHA-022"
           rm -rf "$out_dir"
           mkdir -p "$out_dir"
+          origin_dir="$RUNNER_TEMP/cp-gha-022-origin.git"
+          rm -rf "$origin_dir"
+          git init --bare "$origin_dir"
+          git push "$origin_dir" "HEAD:$GITHUB_REF_NAME"
+          git remote set-url origin "$origin_dir"
+          printf '%s\n' "$origin_dir" > "$out_dir/local-origin.txt"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
-          {"login":"pr-mode-one","name":"PR Mode One","profile":"https://example.com/pr-mode-one","avatar":"","source":"commit","pinned":false,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"pr-mode-one","name":"PR Mode One","profile":"https://example.com/pr-mode-one","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          nohup node scripts/fake-github-api.mjs 18022 "$out_dir" pr-mode-bot 22022 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18022/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18022/__ready >/dev/null
+          echo "CP_GHA_022_API=http://127.0.0.1:18022" >> "$GITHUB_ENV"
       - name: First pull-request run
         id: first
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-022/contributors.md
-          state-file: test-output/CP-GHA-022/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_022_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-022/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-022/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Prepare update fixture
         run: |
           set -euo pipefail
           git checkout "$GITHUB_REF_NAME"
-          git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-022"
           mkdir -p "$out_dir"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
-          {"login":"pr-mode-one","name":"PR Mode One","profile":"https://example.com/pr-mode-one","avatar":"","source":"commit","pinned":false,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
-          {"login":"pr-mode-two","name":"PR Mode Two","profile":"https://example.com/pr-mode-two","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"pr-mode-one","name":"PR Mode One","profile":"https://example.com/pr-mode-one","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"pr-mode-two","name":"PR Mode Two","profile":"https://example.com/pr-mode-two","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
       - name: Second pull-request run
         id: second
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-022/contributors.md
-          state-file: test-output/CP-GHA-022/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_022_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-022/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-022/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Third no-diff pull-request run
         id: third
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-022/contributors.md
-          state-file: test-output/CP-GHA-022/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_022_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-022/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-022/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify pull-request behavior
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           test "${{ steps.first.outputs.pr-opened }}" = "true"
@@ -190,8 +222,9 @@ jobs:
           test "${{ steps.third.outputs.pr-opened }}" = "false"
           test "${{ steps.first.outputs.pr-number }}" = "${{ steps.second.outputs.pr-number }}"
           test -n "${{ steps.first.outputs.pr-url }}"
-          gh pr view "${{ steps.second.outputs.pr-number }}" --json url,headRefName,commits \
-            > test-output/CP-GHA-022/pr-evidence.json
+          grep -F "pr-mode-two" test-output/CP-GHA-022/contributors.md
+          git ls-remote origin refs/heads/contributors-please/update > test-output/CP-GHA-022/update-branch.txt
+          cp test-output/CP-GHA-022/pull-request.json test-output/CP-GHA-022/pr-evidence.json
           {
             echo "### CP-GHA-022"
             echo ""
@@ -214,74 +247,98 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare human-authored PR branch
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
-          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
-            gh pr close "$pr" --delete-branch
-          done
-          git push origin :contributors-please/update || true
+          out_dir="test-output/CP-GHA-023"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          origin_dir="$RUNNER_TEMP/cp-gha-023-origin.git"
+          rm -rf "$origin_dir"
+          git init --bare "$origin_dir"
+          git push "$origin_dir" "HEAD:$GITHUB_REF_NAME"
+          git remote set-url origin "$origin_dir"
+          printf '%s\n' "$origin_dir" > "$out_dir/local-origin.txt"
           git checkout -B contributors-please/update
-          mkdir -p test-output/CP-GHA-023
-          printf 'human branch %s\n' "$GITHUB_RUN_ID" > test-output/CP-GHA-023/human-branch.txt
-          git add test-output/CP-GHA-023/human-branch.txt
+          printf 'human branch\n' > "$out_dir/human-branch.txt"
+          git add "$out_dir/human-branch.txt"
           git -c user.name="human contributor" \
             -c user.email="human@example.com" \
-            commit -m "test: human branch protection ${GITHUB_RUN_ID}"
+            commit -m "test: human branch protection"
           git push origin HEAD:contributors-please/update
           git ls-remote origin refs/heads/contributors-please/update | awk '{print $1}' \
-            > test-output/CP-GHA-023/branch-before.txt
+            > "$out_dir/branch-before.txt"
           git checkout "$GITHUB_REF_NAME"
-          cat > test-output/CP-GHA-023/.contributors.jsonl <<'JSONL'
-          {"login":"branch-protection-control","name":"Branch Protection Control","profile":"https://example.com/branch-protection-control","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"branch-protection-control","name":"Branch Protection Control","profile":"https://example.com/branch-protection-control","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          printf 'branch-protection-control\n' > "$out_dir/control-contributors.md"
+          nohup node scripts/fake-github-api.mjs 18023 "$out_dir" branch-protection-bot 23023 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18023/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18023/__ready >/dev/null
+          echo "CP_GHA_023_API=http://127.0.0.1:18023" >> "$GITHUB_ENV"
       - name: Run valid control
         id: control
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-023/control-contributors.md
-          state-file: test-output/CP-GHA-023/.contributors.jsonl
-          mode: check
-          dry-run: "true"
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_023_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-023/control-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-023/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=true' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: human-authored PR branch"
         id: expected_failure
-        continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-023/contributors.md
-          state-file: test-output/CP-GHA-023/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          set +e
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_023_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-023/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-023/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js > test-output/CP-GHA-023/expected-failure.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Assert expected failure occurred
         run: |
           set -euo pipefail
           git ls-remote origin refs/heads/contributors-please/update | awk '{print $1}' \
             > test-output/CP-GHA-023/branch-after.txt
           cmp test-output/CP-GHA-023/branch-before.txt test-output/CP-GHA-023/branch-after.txt
+          test "${{ steps.expected_failure.outputs.status }}" != "0"
+          grep -F "contains commits not authored by" test-output/CP-GHA-023/expected-failure.log
           {
             echo "expected_failure: true"
             echo "expected_error: branch contributors-please/update contains commits not authored by"
-            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "observed_status: ${{ steps.expected_failure.outputs.status }}"
             echo "control_output: test-output/CP-GHA-023/control-contributors.md"
             echo "artifact: cp-gha-023"
-          } > test-output/CP-GHA-023/expected-failure.log
-          test "${{ steps.expected_failure.outcome }}" = "failure"
+          } >> test-output/CP-GHA-023/expected-failure.log
           cat test-output/CP-GHA-023/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -324,25 +381,19 @@ jobs:
           const server = http.createServer(async (req, res) => {
             const url = new URL(req.url ?? "/", "http://127.0.0.1");
             fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
-            if (url.pathname === "/user") {
-              return json(res, { login: "check-mode-bot", id: 24024 });
-            }
-            if (url.pathname.endsWith("/contributors")) {
-              return json(res, []);
-            }
-            if (url.pathname.endsWith("/issues/24024/comments") && req.method === "GET") {
-              return json(res, comments);
-            }
+            if (url.pathname === "/user") return json(res, { login: "check-mode-bot", id: 24024 });
+            if (url.pathname.endsWith("/contributors")) return json(res, []);
+            if (url.pathname.endsWith("/issues/24024/comments") && req.method === "GET") return json(res, comments);
             if (url.pathname.endsWith("/issues/24024/comments") && req.method === "POST") {
-              const body = await readBody(req);
-              comments.push({ id: 1, body: JSON.parse(body).body });
-              fs.writeFileSync(`${outDir}/comment-body.md`, JSON.parse(body).body);
+              const body = JSON.parse(await readBody(req));
+              comments.push({ id: 1, body: body.body });
+              fs.writeFileSync(`${outDir}/comment-body.md`, body.body);
               return json(res, comments[0], 201);
             }
             if (url.pathname.endsWith("/issues/comments/1") && req.method === "PATCH") {
-              const body = await readBody(req);
-              comments[0] = { id: 1, body: JSON.parse(body).body };
-              fs.writeFileSync(`${outDir}/comment-body.md`, JSON.parse(body).body);
+              const body = JSON.parse(await readBody(req));
+              comments[0] = { id: 1, body: body.body };
+              fs.writeFileSync(`${outDir}/comment-body.md`, body.body);
               return json(res, comments[0]);
             }
             json(res, { error: "not found", path: url.pathname }, 404);
@@ -478,32 +529,15 @@ jobs:
           {"login":"dry-run-tester","name":"Dry Run Tester","profile":"https://example.com/dry-run-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           done
-          cat > "$out_dir/server.mjs" <<'JS'
-          import http from "node:http";
-          import fs from "node:fs";
-          const outDir = "test-output/CP-GHA-025";
-          const server = http.createServer((req, res) => {
-            const url = new URL(req.url ?? "/", "http://127.0.0.1");
-            fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
-            if (url.pathname === "/user") return json(res, { login: "dry-run-bot", id: 25025 });
-            if (url.pathname.endsWith("/contributors")) return json(res, []);
-            json(res, { error: "not found", path: url.pathname }, 404);
-          });
-          server.listen(18025, "127.0.0.1");
-          function json(res, value, status = 200) {
-            res.writeHead(status, { "content-type": "application/json" });
-            res.end(JSON.stringify(value));
-          }
-          JS
-          nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
+          nohup node scripts/fake-github-api.mjs 18025 "$out_dir" dry-run-bot 25025 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
           for _ in {1..20}; do
-            if curl -fsS http://127.0.0.1:18025/user >/dev/null; then
+            if curl -fsS http://127.0.0.1:18025/__ready >/dev/null; then
               break
             fi
             sleep 0.25
           done
-          curl -fsS http://127.0.0.1:18025/user >/dev/null
+          curl -fsS http://127.0.0.1:18025/__ready >/dev/null
           echo "CP_GHA_025_API=http://127.0.0.1:18025" >> "$GITHUB_ENV"
       - name: Non-dry-run control output
         run: |
@@ -575,7 +609,8 @@ jobs:
           {
             echo "### CP-GHA-025"
             echo ""
-            echo "- control_output: dry-run modes intentionally wrote no contributors file"
+            echo "- control_output: test-output/CP-GHA-025/control-contributors.md"
+            echo "- dry-run outputs intentionally absent for commit, pull-request, and check"
             echo "- commit-changed: ${{ steps.commit_mode.outputs.changed }}"
             echo "- pr-opened: ${{ steps.pr_mode.outputs.pr-opened }}"
             echo "- check-changed: ${{ steps.check_mode.outputs.changed }}"
@@ -595,106 +630,126 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Clean branch and label
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+      - name: Prepare label lifecycle fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
-          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
-            gh pr close "$pr" --delete-branch
-          done
-          git push origin :contributors-please/update || true
-          gh label delete "contributors-please: pending" --yes || true
           out_dir="test-output/CP-GHA-026"
           rm -rf "$out_dir"
           mkdir -p "$out_dir"
-          gh label list --json name,color,description > "$out_dir/labels-before.json"
-      - name: Prepare first label fixture
-        run: |
-          cat > test-output/CP-GHA-026/.contributors.jsonl <<'JSONL'
-          {"login":"label-lifecycle-one","name":"Label Lifecycle One","profile":"https://example.com/label-lifecycle-one","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          origin_dir="$RUNNER_TEMP/cp-gha-026-origin.git"
+          rm -rf "$origin_dir"
+          git init --bare "$origin_dir"
+          git push "$origin_dir" "HEAD:$GITHUB_REF_NAME"
+          git remote set-url origin "$origin_dir"
+          printf '%s\n' "$origin_dir" > "$out_dir/local-origin.txt"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"label-lifecycle-one","name":"Label Lifecycle One","profile":"https://example.com/label-lifecycle-one","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          nohup node scripts/fake-github-api.mjs 18026 "$out_dir" label-bot 26026 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18026/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18026/__ready >/dev/null
+          echo "CP_GHA_026_API=http://127.0.0.1:18026" >> "$GITHUB_ENV"
       - name: Open PR with label
         id: first
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-026/contributors.md
-          state-file: test-output/CP-GHA-026/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
-      - name: Remove label before reapply
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_026_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-026/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-026/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: Prepare reapply fixture
         run: |
           set -euo pipefail
-          gh pr edit "${{ steps.first.outputs.pr-number }}" --remove-label "contributors-please: pending"
-          gh pr view "${{ steps.first.outputs.pr-number }}" --json labels > test-output/CP-GHA-026/labels-after-manual-remove.json
+          test "${{ steps.first.outputs.pr-opened }}" = "true"
+          cp test-output/CP-GHA-026/issue-labels.json test-output/CP-GHA-026/issue-labels-after-first.json
+          printf '[]\n' > test-output/CP-GHA-026/issue-labels.json
           git checkout "$GITHUB_REF_NAME"
-          git pull --ff-only origin "$GITHUB_REF_NAME"
           cat > test-output/CP-GHA-026/.contributors.jsonl <<'JSONL'
-          {"login":"label-lifecycle-one","name":"Label Lifecycle One","profile":"https://example.com/label-lifecycle-one","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
-          {"login":"label-lifecycle-two","name":"Label Lifecycle Two","profile":"https://example.com/label-lifecycle-two","avatar":"","source":"commit","pinned":false,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"label-lifecycle-one","name":"Label Lifecycle One","profile":"https://example.com/label-lifecycle-one","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"label-lifecycle-two","name":"Label Lifecycle Two","profile":"https://example.com/label-lifecycle-two","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
       - name: Reapply label
         id: reapply
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-026/contributors.md
-          state-file: test-output/CP-GHA-026/.contributors.jsonl
-          mode: pull-request
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_026_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-026/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-026/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Prepare skip-labeling fixture
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           test "${{ steps.first.outputs.pr-number }}" = "${{ steps.reapply.outputs.pr-number }}"
-          gh pr view "${{ steps.reapply.outputs.pr-number }}" --json labels > test-output/CP-GHA-026/labels-after-reapply.json
-          gh label delete "contributors-please: pending" --yes
+          cp test-output/CP-GHA-026/issue-labels.json test-output/CP-GHA-026/issue-labels-after-reapply.json
+          grep -c '/labels' test-output/CP-GHA-026/api.log > test-output/CP-GHA-026/label-api-count-before-skip.txt
           git checkout "$GITHUB_REF_NAME"
-          git pull --ff-only origin "$GITHUB_REF_NAME"
           cat > test-output/CP-GHA-026/.contributors.jsonl <<'JSONL'
-          {"login":"label-lifecycle-three","name":"Label Lifecycle Three","profile":"https://example.com/label-lifecycle-three","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"label-lifecycle-three","name":"Label Lifecycle Three","profile":"https://example.com/label-lifecycle-three","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
       - name: Run with skip-labeling
         id: skip
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-026/contributors.md
-          state-file: test-output/CP-GHA-026/.contributors.jsonl
-          mode: pull-request
-          skip-labeling: "true"
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_026_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-026/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-026/.contributors.jsonl' \
+            'INPUT_MODE=pull-request' \
+            'INPUT_SKIP-LABELING=true' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify label lifecycle
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
         run: |
           set -euo pipefail
           test "${{ steps.first.outputs.pr-opened }}" = "true"
           test "${{ steps.reapply.outputs.pr-opened }}" = "true"
           test "${{ steps.skip.outputs.pr-opened }}" = "true"
           grep -F "label-lifecycle-three" test-output/CP-GHA-026/contributors.md
-          gh label list --json name,color,description > test-output/CP-GHA-026/labels-after-skip.json
-          jq '.labels | map(.name) | index("contributors-please: pending") != null' \
-            test-output/CP-GHA-026/labels-after-reapply.json \
-            | grep '^true$'
-          gh label list --json name --jq 'map(.name) | index("contributors-please: pending") == null' \
-            | grep '^true$'
+          node <<'JS'
+          const fs = require("fs");
+          const afterFirst = JSON.parse(fs.readFileSync("test-output/CP-GHA-026/issue-labels-after-first.json", "utf8"));
+          const afterReapply = JSON.parse(fs.readFileSync("test-output/CP-GHA-026/issue-labels-after-reapply.json", "utf8"));
+          if (afterFirst.length !== 1 || afterReapply.length !== 1) {
+            throw new Error(`unexpected issue label events: first=${afterFirst.length} reapply=${afterReapply.length}`);
+          }
+          if (!afterReapply[0].labels.includes("contributors-please: pending")) {
+            throw new Error("pending label was not reapplied");
+          }
+          JS
+          before="$(cat test-output/CP-GHA-026/label-api-count-before-skip.txt)"
+          after="$(grep -c '/labels' test-output/CP-GHA-026/api.log)"
+          test "$before" = "$after"
+          cp test-output/CP-GHA-026/pull-request.json test-output/CP-GHA-026/pr-evidence.json
           {
             echo "### CP-GHA-026"
             echo ""
