@@ -86,7 +86,7 @@ assert(
 );
 
 const plannedGhaIds = [
-  ...testPlan.matchAll(/^- \[ \] \*\*CP-GHA-(\d{3})\*\*/gm),
+  ...testPlan.matchAll(/^- \[[ x]\] \*\*CP-GHA-(\d{3})\*\*/gm),
 ].map(match => match[1]);
 const expectedIds = Array.from({ length: 48 }, (_, index) =>
   String(index + 1).padStart(3, "0"),
