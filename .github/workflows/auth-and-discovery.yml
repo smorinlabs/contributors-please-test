@@ -1,0 +1,374 @@
+name: contributors-please auth and discovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: contributors-please-action ref to test.
+        required: false
+        default: v1
+      test_id:
+        description: CP-GHA auth/discovery test ID to run, or all.
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - CP-GHA-001
+          - CP-GHA-002
+          - CP-GHA-003
+          - CP-GHA-004
+          - CP-GHA-005
+          - CP-GHA-006
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contributors-please-test-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ACTION_PATH: .github/actions/contributors-please-action
+
+jobs:
+  cp-gha-001:
+    name: CP-GHA-001 app-token acquisition and identity
+    if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-001' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify App and PAT secrets
+        run: |
+          test -n "${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}"
+          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}"
+          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-001"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"app-token-tester","name":"App Token Tester","profile":"https://example.com/app-token-tester","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"App Token Tester","emoji":"app","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+      - name: Run contributors-please
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          app-id: ${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}
+          private-key: ${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-001/contributors.md
+          state-file: test-output/CP-GHA-001/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Verify App token path
+        run: |
+          set -euo pipefail
+          test "${{ steps.contributors.outputs.token-source }}" = "app"
+          printf '%s\n' "${{ steps.contributors.outputs.committer-login }}" | grep -F "[bot]"
+          grep -F "app-token-tester App Token Tester" test-output/CP-GHA-001/contributors.md
+          {
+            echo "### CP-GHA-001"
+            echo ""
+            echo "- output: test-output/CP-GHA-001/contributors.md"
+            echo "- token-source: ${{ steps.contributors.outputs.token-source }}"
+            echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-001
+          path: test-output/CP-GHA-001
+
+  cp-gha-002:
+    name: CP-GHA-002 PAT acquisition and identity
+    needs: cp-gha-001
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-002') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-002"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"pat-token-tester","name":"PAT Token Tester","profile":"https://example.com/pat-token-tester","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"PAT Token Tester","emoji":"pat","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+      - name: Run contributors-please
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-002/contributors.md
+          state-file: test-output/CP-GHA-002/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Verify PAT path
+        run: |
+          set -euo pipefail
+          test "${{ steps.contributors.outputs.token-source }}" = "pat"
+          test -n "${{ steps.contributors.outputs.committer-login }}"
+          grep -F "pat-token-tester PAT Token Tester" test-output/CP-GHA-002/contributors.md
+          {
+            echo "### CP-GHA-002"
+            echo ""
+            echo "- output: test-output/CP-GHA-002/contributors.md"
+            echo "- token-source: ${{ steps.contributors.outputs.token-source }}"
+            echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-002
+          path: test-output/CP-GHA-002
+
+  cp-gha-003:
+    name: CP-GHA-003 expected-failure-missing-credentials
+    needs: cp-gha-002
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-003') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret for control
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-003"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"missing-credentials-control","name":"Missing Credentials Control","profile":"https://example.com/missing-credentials-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Missing Credentials Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+      - name: Run valid control
+        id: control
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-003/control-contributors.md
+          state-file: test-output/CP-GHA-003/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}} {{title}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: missing credentials"
+        id: expected_failure
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          output-file: test-output/CP-GHA-003/contributors.md
+          state-file: test-output/CP-GHA-003/.contributors.jsonl
+          mode: commit
+      - name: Assert expected failure occurred
+        run: |
+          set -euo pipefail
+          {
+            echo "expected_failure: true"
+            echo "expected_error: Provide either app-id + private-key, or pat."
+            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "control_output: test-output/CP-GHA-003/control-contributors.md"
+            echo "artifact: cp-gha-003"
+          } > test-output/CP-GHA-003/expected-failure.log
+          test "${{ steps.expected_failure.outcome }}" = "failure"
+          cat test-output/CP-GHA-003/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-003
+          path: test-output/CP-GHA-003
+
+  cp-gha-004:
+    name: CP-GHA-004 contributor discovery smoke
+    needs: cp-gha-003
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-004') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          mkdir -p test-output/CP-GHA-004
+          git log --no-merges --name-only --pretty='format:%H %an <%ae>' > test-output/CP-GHA-004/git-log-evidence.txt
+      - name: Run contributors-please
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-004/contributors.md
+          state-file: test-output/CP-GHA-004/.contributors.jsonl
+          mode: commit
+          bootstrap: "true"
+          entry-template: "{{login}} {{title}}"
+      - name: Verify discovery smoke
+        run: |
+          set -euo pipefail
+          test -s test-output/CP-GHA-004/git-log-evidence.txt
+          test -s test-output/CP-GHA-004/.contributors.jsonl
+          test -n '${{ steps.contributors.outputs.contributors-json }}'
+          {
+            echo "### CP-GHA-004"
+            echo ""
+            echo "- output: test-output/CP-GHA-004/contributors.md"
+            echo "- git-log-evidence: test-output/CP-GHA-004/git-log-evidence.txt"
+            echo "- changed: ${{ steps.contributors.outputs.changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-004
+          path: test-output/CP-GHA-004
+
+  cp-gha-005:
+    name: CP-GHA-005 expected-failure-shallow-checkout
+    needs: cp-gha-004
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-005') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare control fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-005"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"shallow-control","name":"Shallow Control","profile":"https://example.com/shallow-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Shallow Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+      - name: Run valid full-depth control
+        id: control
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-005/control-contributors.md
+          state-file: test-output/CP-GHA-005/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Make repository shallow
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$GITHUB_REF_NAME"
+          test "$(git rev-parse --is-shallow-repository)" = "true"
+      - name: "EXPECTED FAILURE: shallow checkout"
+        id: expected_failure
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-005/contributors.md
+          state-file: test-output/CP-GHA-005/.contributors.jsonl
+          mode: commit
+          bootstrap: "true"
+      - name: Assert expected failure occurred
+        run: |
+          set -euo pipefail
+          {
+            echo "expected_failure: true"
+            echo "expected_error: fetch-depth: 0"
+            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "control_output: test-output/CP-GHA-005/control-contributors.md"
+            echo "artifact: cp-gha-005"
+          } > test-output/CP-GHA-005/expected-failure.log
+          test "${{ steps.expected_failure.outcome }}" = "failure"
+          cat test-output/CP-GHA-005/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-005
+          path: test-output/CP-GHA-005
+
+  cp-gha-006:
+    name: CP-GHA-006 self-exclusion notice
+    needs: cp-gha-005
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-006') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-006"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"self-exclusion-control","name":"Self Exclusion Control","profile":"https://example.com/self-exclusion-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Self Exclusion Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+      - name: Run contributors-please
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-006/contributors.md
+          state-file: test-output/CP-GHA-006/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Verify self-exclusion summary
+        run: |
+          set -euo pipefail
+          test -n "${{ steps.contributors.outputs.committer-login }}"
+          grep -F "Self-excluded committer" "$GITHUB_STEP_SUMMARY"
+          grep -F "self-exclusion-control Self Exclusion Control" test-output/CP-GHA-006/contributors.md
+          {
+            echo "### CP-GHA-006"
+            echo ""
+            echo "- output: test-output/CP-GHA-006/contributors.md"
+            echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-006
+          path: test-output/CP-GHA-006

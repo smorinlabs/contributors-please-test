@@ -1,0 +1,207 @@
+name: contributors-please acceptance loopguards
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - test-output/CP-GHA-039/contributors.md
+      - test-output/CP-GHA-039/.contributors.jsonl
+      - CONTRIBUTORS.md
+      - .contributors.jsonl
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: contributors-please-action ref to test.
+        required: false
+        default: v1
+      test_id:
+        description: CP-GHA acceptance/loopguard test ID to run, or all.
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - CP-GHA-039
+          - CP-GHA-040
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contributors-please-test-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ACTION_PATH: .github/actions/contributors-please-action
+
+jobs:
+  cp-gha-039:
+    name: CP-GHA-039 loop guards and idempotency
+    if: ${{ github.event_name == 'push' || inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-039' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare loop guard fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-039"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"loopguard-tester","name":"Loopguard Tester","profile":"https://example.com/loopguard-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+          git rev-parse HEAD > "$out_dir/head-before.txt"
+      - name: First default commit run
+        id: first
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-039/contributors.md
+          state-file: test-output/CP-GHA-039/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: Capture first-run bytes
+        run: |
+          set -euo pipefail
+          sha256sum test-output/CP-GHA-039/contributors.md > test-output/CP-GHA-039/contributors.first.sha256
+          sha256sum test-output/CP-GHA-039/.contributors.jsonl > test-output/CP-GHA-039/state.first.sha256
+          git log -1 --format=%B "${{ steps.first.outputs.commit-sha }}" > test-output/CP-GHA-039/default-commit-message.txt
+      - name: Manual rerun with no diff
+        id: second
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-039/contributors.md
+          state-file: test-output/CP-GHA-039/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: Verify loop guards
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+        run: |
+          set -euo pipefail
+          sha256sum -c test-output/CP-GHA-039/contributors.first.sha256
+          sha256sum -c test-output/CP-GHA-039/state.first.sha256
+          test "${{ steps.first.outputs.changed }}" = "true"
+          test "${{ steps.second.outputs.changed }}" = "false"
+          grep -F "[skip ci]" test-output/CP-GHA-039/default-commit-message.txt
+          gh run list --workflow acceptance-loopguards.yml --limit 10 --json databaseId,event,headSha,status,conclusion \
+            > test-output/CP-GHA-039/workflow-run-history.json
+          {
+            echo "### CP-GHA-039"
+            echo ""
+            echo "- output: test-output/CP-GHA-039/contributors.md"
+            echo "- first-commit: ${{ steps.first.outputs.commit-sha }}"
+            echo "- second-changed: ${{ steps.second.outputs.changed }}"
+            echo "- workflow-run-history: test-output/CP-GHA-039/workflow-run-history.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-039
+          path: test-output/CP-GHA-039
+
+  cp-gha-040:
+    name: CP-GHA-040 py-launch-blueprint acceptance flow
+    needs: cp-gha-039
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-040') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/py-launch-blueprint
+          ref: main
+          path: test-output/CP-GHA-040/py-launch-blueprint
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Clean deterministic PR branch and bootstrap with CLI
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
+            gh pr close "$pr" --delete-branch
+          done
+          git push origin :contributors-please/update || true
+          out_dir="test-output/CP-GHA-040"
+          mkdir -p "$out_dir"
+          cp "$out_dir/py-launch-blueprint/.github/workflows/update-contributors.yml" \
+            "$out_dir/py-launch-blueprint-update-contributors.yml"
+          npm_config_yes=true npx contributors-please@latest init --non-interactive \
+            --owner "${GITHUB_REPOSITORY%/*}" \
+            --repo "${GITHUB_REPOSITORY#*/}" \
+            --token "$GITHUB_TOKEN" \
+            --output-file "$out_dir/contributors.md" \
+            --state-file "$out_dir/.contributors.jsonl"
+          cp "$out_dir/contributors.md" "$out_dir/cli-bootstrap-contributors.md"
+      - name: Open contributors PR from bootstrapped files
+        id: first
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-040/contributors.md
+          state-file: test-output/CP-GHA-040/.contributors.jsonl
+          mode: pull-request
+      - name: Rerun acceptance flow
+        id: rerun
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-040/contributors.md
+          state-file: test-output/CP-GHA-040/.contributors.jsonl
+          mode: pull-request
+      - name: Verify acceptance flow
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+        run: |
+          set -euo pipefail
+          test "${{ steps.first.outputs.pr-opened }}" = "true"
+          test "${{ steps.rerun.outputs.pr-opened }}" = "false"
+          test -n "${{ steps.first.outputs.pr-number }}"
+          gh pr view "${{ steps.first.outputs.pr-number }}" --json url,labels,files \
+            > test-output/CP-GHA-040/pr-evidence.json
+          jq '.labels | map(.name) | index("contributors-please: pending") != null' \
+            test-output/CP-GHA-040/pr-evidence.json | grep '^true$'
+          grep -F "smorinlabs/contributors-please-action@v1" \
+            test-output/CP-GHA-040/py-launch-blueprint-update-contributors.yml
+          grep -F "mode: pull-request" \
+            test-output/CP-GHA-040/py-launch-blueprint-update-contributors.yml
+          cmp test-output/CP-GHA-040/cli-bootstrap-contributors.md test-output/CP-GHA-040/contributors.md
+          {
+            echo "### CP-GHA-040"
+            echo ""
+            echo "- output: test-output/CP-GHA-040/contributors.md"
+            echo "- pr: ${{ steps.first.outputs.pr-url }}"
+            echo "- rerun-pr-opened: ${{ steps.rerun.outputs.pr-opened }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-040
+          path: test-output/CP-GHA-040

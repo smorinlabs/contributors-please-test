@@ -1,0 +1,578 @@
+name: contributors-please rendering
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: contributors-please-action ref to test.
+        required: false
+        default: v1
+      test_id:
+        description: CP-GHA rendering test ID to run, or all.
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - CP-GHA-014
+          - CP-GHA-015
+          - CP-GHA-016
+          - CP-GHA-017
+          - CP-GHA-018
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contributors-please-test-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ACTION_PATH: .github/actions/contributors-please-action
+
+jobs:
+  cp-gha-014:
+    name: CP-GHA-014 bare rendering
+    if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-014' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-014"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          : > "$out_dir/empty.jsonl"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"alpha-render","name":"Alpha Render","profile":"https://example.com/alpha-render","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":3,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          {"login":"beta-render","name":"Beta Render","profile":"https://example.com/beta-render","avatar":"","source":"commit","pinned":false,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":2,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          {"login":"gamma-render","name":"Gamma Render","profile":"https://example.com/gamma-render","avatar":"","source":"commit","pinned":false,"categories":["quality"],"title":"Quality Contributor","emoji":"test","commits":1,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+      - name: Run empty bare rendering
+        id: empty
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-014/empty-contributors.md
+          state-file: test-output/CP-GHA-014/empty.jsonl
+          mode: commit
+          entry-template: "{{login}}"
+          empty-text: No contributors selected.
+          min-contributions: "999999"
+      - name: Run populated bare rendering
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-014/contributors.md
+          state-file: test-output/CP-GHA-014/.contributors.jsonl
+          mode: commit
+          entry-template: "{{login}}"
+          columns-per-row: "2"
+          min-contributions: "1"
+      - name: Verify output
+        run: |
+          set -euo pipefail
+          test "${{ steps.contributors.outputs.token-source }}" = "pat"
+          grep -F "No contributors selected." test-output/CP-GHA-014/empty-contributors.md
+          grep -F "alpha-render beta-render" test-output/CP-GHA-014/contributors.md
+          grep -F "gamma-render" test-output/CP-GHA-014/contributors.md
+          if grep -E '\{\{[a-z_]+\}\}' test-output/CP-GHA-014/contributors.md; then
+            echo "unreplaced placeholder in bare rendering" >&2
+            exit 1
+          fi
+          {
+            echo "### CP-GHA-014"
+            echo ""
+            echo "- output: test-output/CP-GHA-014/contributors.md"
+            echo "- empty-output: test-output/CP-GHA-014/empty-contributors.md"
+            echo "- empty-changed: ${{ steps.empty.outputs.changed }}"
+            echo "- changed: ${{ steps.contributors.outputs.changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-014
+          path: test-output/CP-GHA-014
+
+  cp-gha-015:
+    name: CP-GHA-015 template-file rendering
+    needs: cp-gha-014
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-015') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-015"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/default.jsonl" <<'JSONL'
+          {"login":"default-template-tester","name":"Default Template Tester","profile":"https://example.com/default-template-tester","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Default Template Tester","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"template-tester","name":"Template Tester","profile":"https://example.com/template-tester","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Template Tester","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+          cat > "$out_dir/default-template.md" <<'EOF'
+          # Default Template Contributors
+
+          <!-- CONTRIBUTORS -->
+
+          Default end.
+          EOF
+          cat > "$out_dir/template.md" <<'EOF'
+          # Template Contributors
+
+          [[contributors]]
+
+          End.
+          EOF
+          sha256sum "$out_dir/default-template.md" "$out_dir/template.md" > "$out_dir/template.before.sha256"
+      - name: Run default placeholder template
+        id: default_template
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-015/default-contributors.md
+          state-file: test-output/CP-GHA-015/default.jsonl
+          mode: commit
+          template-file: test-output/CP-GHA-015/default-template.md
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Run custom placeholder template
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-015/contributors.md
+          state-file: test-output/CP-GHA-015/.contributors.jsonl
+          mode: commit
+          template-file: test-output/CP-GHA-015/template.md
+          template-placeholder: "[[contributors]]"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Verify output
+        run: |
+          set -euo pipefail
+          grep -F "# Template Contributors" test-output/CP-GHA-015/contributors.md
+          grep -F "# Default Template Contributors" test-output/CP-GHA-015/default-contributors.md
+          grep -F -- "- default-template-tester Default Template Tester" test-output/CP-GHA-015/default-contributors.md
+          grep -F -- "- template-tester Template Tester" test-output/CP-GHA-015/contributors.md
+          grep -F "End." test-output/CP-GHA-015/contributors.md
+          grep -F "[[contributors]]" test-output/CP-GHA-015/template.md
+          sha256sum -c test-output/CP-GHA-015/template.before.sha256
+          if grep -F "[[contributors]]" test-output/CP-GHA-015/contributors.md; then
+            echo "placeholder leaked into rendered output" >&2
+            exit 1
+          fi
+          if grep -F "<!-- CONTRIBUTORS -->" test-output/CP-GHA-015/default-contributors.md; then
+            echo "default placeholder leaked into rendered output" >&2
+            exit 1
+          fi
+          {
+            echo "### CP-GHA-015"
+            echo ""
+            echo "- output: test-output/CP-GHA-015/contributors.md"
+            echo "- default-output: test-output/CP-GHA-015/default-contributors.md"
+            echo "- default-changed: ${{ steps.default_template.outputs.changed }}"
+            echo "- changed: ${{ steps.contributors.outputs.changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-015
+          path: test-output/CP-GHA-015
+
+  cp-gha-016:
+    name: CP-GHA-016 header footer rendering
+    needs: cp-gha-015
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-016') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-016"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"header-footer-tester","name":"Header Footer Tester","profile":"https://example.com/header-footer-tester","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Header Footer Tester","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+      - name: Run header-only rendering
+        id: header_only
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-016/header-only.md
+          state-file: test-output/CP-GHA-016/.contributors.jsonl
+          mode: commit
+          header: "# Header Only Contributors"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Run footer-only rendering
+        id: footer_only
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-016/footer-only.md
+          state-file: test-output/CP-GHA-016/.contributors.jsonl
+          mode: commit
+          footer: "Generated by footer-only case."
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Run header-footer rendering
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-016/contributors.md
+          state-file: test-output/CP-GHA-016/.contributors.jsonl
+          mode: commit
+          header: "# Header Footer Contributors"
+          footer: "Generated by CP-GHA-016."
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Verify output
+        run: |
+          set -euo pipefail
+          grep -F "# Header Only Contributors" test-output/CP-GHA-016/header-only.md
+          grep -F "Generated by footer-only case." test-output/CP-GHA-016/footer-only.md
+          grep -F "# Header Footer Contributors" test-output/CP-GHA-016/contributors.md
+          grep -F -- "- header-footer-tester Header Footer Tester" test-output/CP-GHA-016/contributors.md
+          grep -F "Generated by CP-GHA-016." test-output/CP-GHA-016/contributors.md
+          {
+            echo "template-file: unset"
+            echo "in-place: unset"
+            echo "header-only-output: test-output/CP-GHA-016/header-only.md"
+            echo "footer-only-output: test-output/CP-GHA-016/footer-only.md"
+            echo "header-footer-output: test-output/CP-GHA-016/contributors.md"
+          } > test-output/CP-GHA-016/run-metadata.txt
+          {
+            echo "### CP-GHA-016"
+            echo ""
+            echo "- output: test-output/CP-GHA-016/contributors.md"
+            echo "- header-only-output: test-output/CP-GHA-016/header-only.md"
+            echo "- footer-only-output: test-output/CP-GHA-016/footer-only.md"
+            echo "- header-only-changed: ${{ steps.header_only.outputs.changed }}"
+            echo "- footer-only-changed: ${{ steps.footer_only.outputs.changed }}"
+            echo "- changed: ${{ steps.contributors.outputs.changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-016
+          path: test-output/CP-GHA-016
+
+  cp-gha-017:
+    name: CP-GHA-017 in-place rendering
+    needs: cp-gha-016
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-017') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-017"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"in-place-tester","name":"In Place Tester","profile":"https://example.com/in-place-tester","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"In Place Tester","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+          cat > "$out_dir/default-markers.md" <<'EOF'
+          Default before
+          <!-- contributors-please:start -->
+          old default
+          <!-- contributors-please:end -->
+          Default after
+          EOF
+          cat > "$out_dir/contributors.md" <<'EOF'
+          Before
+          <!-- cp:start -->
+          old
+          <!-- cp:end -->
+          After
+          EOF
+          node <<'JS'
+          const fs = require("fs");
+          for (const file of ["default-markers.md", "contributors.md"]) {
+            const path = `test-output/CP-GHA-017/${file}`;
+            const text = fs.readFileSync(path, "utf8");
+            const start = file === "default-markers.md" ? "<!-- contributors-please:start -->" : "<!-- cp:start -->";
+            const end = file === "default-markers.md" ? "<!-- contributors-please:end -->" : "<!-- cp:end -->";
+            fs.writeFileSync(`${path}.prefix`, text.slice(0, text.indexOf(start) + start.length));
+            fs.writeFileSync(`${path}.suffix`, text.slice(text.indexOf(end)));
+          }
+          JS
+      - name: Run default-marker in-place rendering
+        id: default_markers
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-017/default-markers.md
+          state-file: test-output/CP-GHA-017/.contributors.jsonl
+          mode: commit
+          in-place: "true"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Run custom-marker in-place rendering
+        id: contributors
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-017/contributors.md
+          state-file: test-output/CP-GHA-017/.contributors.jsonl
+          mode: commit
+          in-place: "true"
+          in-place-marker-start: "<!-- cp:start -->"
+          in-place-marker-end: "<!-- cp:end -->"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Verify output
+        run: |
+          set -euo pipefail
+          grep -F "Default before" test-output/CP-GHA-017/default-markers.md
+          grep -F "<!-- contributors-please:start -->" test-output/CP-GHA-017/default-markers.md
+          grep -F -- "- in-place-tester In Place Tester" test-output/CP-GHA-017/default-markers.md
+          grep -F "<!-- contributors-please:end -->" test-output/CP-GHA-017/default-markers.md
+          grep -F "Default after" test-output/CP-GHA-017/default-markers.md
+          grep -F "Before" test-output/CP-GHA-017/contributors.md
+          grep -F "<!-- cp:start -->" test-output/CP-GHA-017/contributors.md
+          grep -F -- "- in-place-tester In Place Tester" test-output/CP-GHA-017/contributors.md
+          grep -F "<!-- cp:end -->" test-output/CP-GHA-017/contributors.md
+          grep -F "After" test-output/CP-GHA-017/contributors.md
+          if grep -F "old" test-output/CP-GHA-017/contributors.md; then
+            echo "old in-place body was not replaced" >&2
+            exit 1
+          fi
+          node <<'JS'
+          const fs = require("fs");
+          for (const file of ["default-markers.md", "contributors.md"]) {
+            const path = `test-output/CP-GHA-017/${file}`;
+            const text = fs.readFileSync(path, "utf8");
+            const start = file === "default-markers.md" ? "<!-- contributors-please:start -->" : "<!-- cp:start -->";
+            const end = file === "default-markers.md" ? "<!-- contributors-please:end -->" : "<!-- cp:end -->";
+            if (fs.readFileSync(`${path}.prefix`, "utf8") !== text.slice(0, text.indexOf(start) + start.length)) {
+              throw new Error(`${file} prefix changed`);
+            }
+            if (fs.readFileSync(`${path}.suffix`, "utf8") !== text.slice(text.indexOf(end))) {
+              throw new Error(`${file} suffix changed`);
+            }
+          }
+          JS
+          {
+            echo "### CP-GHA-017"
+            echo ""
+            echo "- output: test-output/CP-GHA-017/contributors.md"
+            echo "- default-output: test-output/CP-GHA-017/default-markers.md"
+            echo "- default-changed: ${{ steps.default_markers.outputs.changed }}"
+            echo "- changed: ${{ steps.contributors.outputs.changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-017
+          path: test-output/CP-GHA-017
+
+  cp-gha-018:
+    name: CP-GHA-018 expected-failure-wrapper-mutual-exclusion
+    needs: cp-gha-017
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-018') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-018"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"invalid-wrapper-control","name":"Invalid Wrapper Control","profile":"https://example.com/invalid-wrapper-control","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Invalid Wrapper Control","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+          printf 'invalid-wrapper-control\n' > "$out_dir/control-contributors.md"
+          cat > "$out_dir/template.md" <<'EOF'
+          Before
+          <!-- CONTRIBUTORS -->
+          After
+          EOF
+          cat > "$out_dir/missing-marker.md" <<'EOF'
+          Before
+          no markers here
+          After
+          EOF
+          cat > "$out_dir/duplicate-marker.md" <<'EOF'
+          Before
+          <!-- contributors-please:start -->
+          first
+          <!-- contributors-please:start -->
+          second
+          <!-- contributors-please:end -->
+          After
+          EOF
+          cat > "$out_dir/inverted-marker.md" <<'EOF'
+          Before
+          <!-- contributors-please:end -->
+          inverted
+          <!-- contributors-please:start -->
+          After
+          EOF
+          cp "$out_dir/missing-marker.md" "$out_dir/missing-marker.before.md"
+          cp "$out_dir/duplicate-marker.md" "$out_dir/duplicate-marker.before.md"
+          cp "$out_dir/inverted-marker.md" "$out_dir/inverted-marker.before.md"
+      - name: Run valid control
+        id: control
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-018/control-contributors.md
+          state-file: test-output/CP-GHA-018/.contributors.jsonl
+          mode: check
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: missing in-place file"
+        id: missing_file
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-018/missing-file.md
+          state-file: test-output/CP-GHA-018/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          in-place: "true"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: missing in-place marker"
+        id: missing_marker
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-018/missing-marker.md
+          state-file: test-output/CP-GHA-018/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          in-place: "true"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: duplicate in-place marker"
+        id: duplicate_marker
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-018/duplicate-marker.md
+          state-file: test-output/CP-GHA-018/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          in-place: "true"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: inverted in-place marker"
+        id: inverted_marker
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-018/inverted-marker.md
+          state-file: test-output/CP-GHA-018/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          in-place: "true"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: mutually exclusive wrapper inputs"
+        id: mutual_exclusion
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          output-file: test-output/CP-GHA-018/contributors.md
+          state-file: test-output/CP-GHA-018/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          template-file: test-output/CP-GHA-018/template.md
+          header: "# Invalid"
+          entry-template: "- {{login}} {{title}}"
+          min-contributions: "999999"
+      - name: Assert expected failure occurred
+        run: |
+          set -euo pipefail
+          test "${{ steps.control.outputs.changed }}" = "false"
+          test "${{ steps.missing_file.outcome }}" = "failure"
+          test "${{ steps.missing_marker.outcome }}" = "failure"
+          test "${{ steps.duplicate_marker.outcome }}" = "failure"
+          test "${{ steps.inverted_marker.outcome }}" = "failure"
+          test "${{ steps.mutual_exclusion.outcome }}" = "failure"
+          test ! -f test-output/CP-GHA-018/missing-file.md
+          cmp test-output/CP-GHA-018/missing-marker.before.md test-output/CP-GHA-018/missing-marker.md
+          cmp test-output/CP-GHA-018/duplicate-marker.before.md test-output/CP-GHA-018/duplicate-marker.md
+          cmp test-output/CP-GHA-018/inverted-marker.before.md test-output/CP-GHA-018/inverted-marker.md
+          {
+            echo "expected_failure: true"
+            echo "expected_errors: missing file; missing marker; duplicate marker; inverted marker; mutually exclusive wrapper mode"
+            echo "missing_file_outcome: ${{ steps.missing_file.outcome }}"
+            echo "missing_marker_outcome: ${{ steps.missing_marker.outcome }}"
+            echo "duplicate_marker_outcome: ${{ steps.duplicate_marker.outcome }}"
+            echo "inverted_marker_outcome: ${{ steps.inverted_marker.outcome }}"
+            echo "mutual_exclusion_outcome: ${{ steps.mutual_exclusion.outcome }}"
+            echo "control_output: test-output/CP-GHA-018/control-contributors.md"
+            echo "artifact: cp-gha-018"
+          } > test-output/CP-GHA-018/expected-failure.log
+          cat test-output/CP-GHA-018/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-018
+          path: test-output/CP-GHA-018

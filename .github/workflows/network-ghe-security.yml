@@ -1,0 +1,645 @@
+name: contributors-please network ghe security
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: contributors-please-action ref to test.
+        required: false
+        default: v1
+      test_id:
+        description: CP-GHA network/GHE/security test ID to run, or all.
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - CP-GHA-031
+          - CP-GHA-032
+          - CP-GHA-041
+          - CP-GHA-042
+          - CP-GHA-043
+          - CP-GHA-048
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contributors-please-test-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ACTION_PATH: .github/actions/contributors-please-action
+
+jobs:
+  cp-gha-031:
+    name: CP-GHA-031 GHE URL and no-reply derivation
+    if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-031' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare isolated GHE fixture and fake API
+        run: |
+          set -euo pipefail
+          git checkout --orphan "cp-gha-031-${GITHUB_RUN_ID}"
+          git rm -rf . || true
+          out_dir="test-output/CP-GHA-031"
+          mkdir -p "$out_dir" src
+          printf 'ghe fixture\n' > src/ghe-fixture.txt
+          git add src/ghe-fixture.txt
+          GIT_AUTHOR_DATE="2026-05-01T00:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-01T00:00:00Z" \
+          git -c user.name="GHE User" \
+            -c user.email="31031+ghe-user@users.noreply.ghe.example.test" \
+            commit -m "test: CP-GHA-031 GHE identity"
+          cat > "$out_dir/server.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-031";
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
+            if (url.pathname === "/user") return json(res, { login: "ghe-bot", id: 31031 });
+            if (url.pathname.endsWith("/contributors")) {
+              return json(res, [{ login: "ghe-user", name: "GHE User", contributions: 1 }]);
+            }
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18031, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          echo "CP_GHA_031_API=http://127.0.0.1:18031" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Run contributors-please against GHE-like URLs
+        id: ghe
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: fake-token
+          github-server-url: https://ghe.example.test
+          github-api-url: ${{ env.CP_GHA_031_API }}
+          output-file: test-output/CP-GHA-031/contributors.md
+          state-file: test-output/CP-GHA-031/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          bootstrap: "true"
+          entry-template: "[{{login}}]({{profile}})"
+      - name: Verify GHE derivation
+        env:
+          CONTRIBUTORS_JSON: ${{ steps.ghe.outputs.contributors-json }}
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs = require("fs");
+          const records = JSON.parse(process.env.CONTRIBUTORS_JSON);
+          const record = records.find(item => item.login === "ghe-user");
+          if (!record) throw new Error("ghe-user was not discovered");
+          if (record.profile !== "https://ghe.example.test/ghe-user") {
+            throw new Error(`unexpected profile ${record.profile}`);
+          }
+          fs.writeFileSync("test-output/CP-GHA-031/contributors.md", `[${record.login}](${record.profile})\n`);
+          fs.writeFileSync("test-output/CP-GHA-031/contributors.json", JSON.stringify(records, null, 2));
+          JS
+          grep -F "GET /user" test-output/CP-GHA-031/api.log
+          grep -F "GET /repos/" test-output/CP-GHA-031/api.log
+          {
+            echo "### CP-GHA-031"
+            echo ""
+            echo "- output: test-output/CP-GHA-031/contributors.md"
+            echo "- api-log: test-output/CP-GHA-031/api.log"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-031
+          path: test-output/CP-GHA-031
+
+  cp-gha-032:
+    name: CP-GHA-032 HTTPS proxy network boundary
+    needs: cp-gha-031
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-032') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Prepare proxy fixture
+        run: |
+          set -euo pipefail
+          out_dir="test-output/CP-GHA-032"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"proxy-tester","name":"Proxy Tester","profile":"https://example.com/proxy-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+          printf 'proxy-tester\n' > "$out_dir/contributors.md"
+          cat > "$out_dir/proxy.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-032";
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://proxy.local");
+            fs.appendFileSync(`${outDir}/proxy.log`, `${req.method} ${url.href}\n`);
+            if (url.pathname === "/user") return json(res, { login: "proxy-bot", id: 32032 });
+            if (url.pathname.endsWith("/contributors")) return json(res, []);
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18032, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          nohup node "$out_dir/proxy.mjs" > "$out_dir/proxy-server.log" 2>&1 &
+          echo "$!" > "$out_dir/proxy.pid"
+          echo "CP_GHA_032_API=http://api.cp-gha-032.test" >> "$GITHUB_ENV"
+          echo "CP_GHA_032_PROXY=http://127.0.0.1:18032" >> "$GITHUB_ENV"
+      - name: Run contributors-please through proxy
+        id: proxy
+        uses: ./.github/actions/contributors-please-action
+        env:
+          HTTPS_PROXY: ${{ env.CP_GHA_032_PROXY }}
+          NO_PROXY: metadata.google.internal
+        with:
+          pat: fake-token
+          github-api-url: ${{ env.CP_GHA_032_API }}
+          output-file: test-output/CP-GHA-032/contributors.md
+          state-file: test-output/CP-GHA-032/.contributors.jsonl
+          mode: check
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: Verify proxy boundary
+        run: |
+          set -euo pipefail
+          test "${{ steps.proxy.outputs.changed }}" = "false"
+          grep -F "api.cp-gha-032.test/user" test-output/CP-GHA-032/proxy.log
+          grep -F "/repos/" test-output/CP-GHA-032/proxy.log
+          if grep -Ev 'api\.cp-gha-032\.test|^$' test-output/CP-GHA-032/proxy.log; then
+            echo "unexpected non-GitHub destination in proxy log" >&2
+            exit 1
+          fi
+          {
+            echo "### CP-GHA-032"
+            echo ""
+            echo "- output: test-output/CP-GHA-032/contributors.md"
+            echo "- proxy-log: test-output/CP-GHA-032/proxy.log"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-032
+          path: test-output/CP-GHA-032
+
+  cp-gha-041:
+    name: CP-GHA-041 identity join fallback warnings
+    needs: cp-gha-032
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-041') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare isolated identity fixture and fake API
+        run: |
+          set -euo pipefail
+          git checkout --orphan "cp-gha-041-${GITHUB_RUN_ID}"
+          git rm -rf . || true
+          out_dir="test-output/CP-GHA-041"
+          mkdir -p "$out_dir" src docs config misc
+          printf 'noreply\n' > src/noreply.txt
+          git add src/noreply.txt
+          GIT_AUTHOR_DATE="2026-05-01T00:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-01T00:00:00Z" \
+          git -c user.name="No Reply" \
+            -c user.email="41041+noreply-login@users.noreply.github.com" \
+            commit -m "test: no-reply identity"
+          cat > .mailmap <<'EOF'
+          Mailmap Login <42041+mailmap-login@users.noreply.github.com> Alias Author <alias@example.com>
+          EOF
+          printf 'mailmap\n' > docs/mailmap.txt
+          git add .mailmap docs/mailmap.txt
+          GIT_AUTHOR_DATE="2026-05-02T00:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-02T00:00:00Z" \
+          git -c user.name="Alias Author" \
+            -c user.email="alias@example.com" \
+            commit -m "test: mailmap identity"
+          cat > "$out_dir/.contributors.yml" <<'YAML'
+          identity_map:
+            - login: identity-login
+              emails:
+                - identity@example.com
+          entry_template: "{{login}}"
+          YAML
+          printf 'identity\n' > config/identity.txt
+          git add config/identity.txt
+          GIT_AUTHOR_DATE="2026-05-03T00:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-03T00:00:00Z" \
+          git -c user.name="Identity Author" \
+            -c user.email="identity@example.com" \
+            commit -m "test: config identity map"
+          printf 'unknown\n' > misc/unknown.txt
+          git add misc/unknown.txt
+          GIT_AUTHOR_DATE="2026-05-04T00:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-04T00:00:00Z" \
+          git -c user.name="Unknown Author" \
+            -c user.email="unknown@example.com" \
+            commit -m "test: unjoinable identity"
+          git log --no-merges --format='%an <%ae>' > "$out_dir/raw-authors.txt"
+          cp .mailmap "$out_dir/mailmap.txt"
+          cat > "$out_dir/server.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-041";
+          const contributors = [
+            { login: "noreply-login", name: "No Reply", contributions: 1 },
+            { login: "mailmap-login", name: "Mailmap Login", contributions: 1 },
+            { login: "identity-login", name: "Identity Login", contributions: 1 },
+          ];
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
+            if (url.pathname === "/user") return json(res, { login: "identity-bot", id: 41041 });
+            if (url.pathname.endsWith("/contributors")) return json(res, contributors);
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18041, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          echo "CP_GHA_041_API=http://127.0.0.1:18041" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Run identity join fixture
+        id: identity
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: fake-token
+          github-api-url: ${{ env.CP_GHA_041_API }}
+          output-file: test-output/CP-GHA-041/contributors.md
+          state-file: test-output/CP-GHA-041/.contributors.jsonl
+          config-file: test-output/CP-GHA-041/.contributors.yml
+          mode: check
+          dry-run: "true"
+          bootstrap: "true"
+      - name: Verify identity joins and warnings
+        env:
+          CONTRIBUTORS_JSON: ${{ steps.identity.outputs.contributors-json }}
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs = require("fs");
+          const records = JSON.parse(process.env.CONTRIBUTORS_JSON);
+          const logins = records.map(record => record.login).sort();
+          const expected = ["identity-login", "mailmap-login", "noreply-login"];
+          if (JSON.stringify(logins) !== JSON.stringify(expected)) {
+            throw new Error(`unexpected joined logins ${JSON.stringify(logins)}`);
+          }
+          fs.writeFileSync("test-output/CP-GHA-041/contributors.md", `${logins.join("\n")}\n`);
+          fs.writeFileSync("test-output/CP-GHA-041/contributors.json", JSON.stringify(records, null, 2));
+          JS
+          grep -F "Could not join git author Unknown Author <unknown@example.com>" "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### CP-GHA-041"
+            echo ""
+            echo "- output: test-output/CP-GHA-041/contributors.md"
+            echo "- raw-authors: test-output/CP-GHA-041/raw-authors.txt"
+            echo "- mailmap: test-output/CP-GHA-041/mailmap.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-041
+          path: test-output/CP-GHA-041
+
+  cp-gha-042:
+    name: CP-GHA-042 pagination and expected rate-limit failure
+    needs: cp-gha-041
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-042') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Prepare pagination and rate-limit APIs
+        run: |
+          set -euo pipefail
+          out_dir="test-output/CP-GHA-042"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"pagination-control","name":"Pagination Control","profile":"https://example.com/pagination-control","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+          printf 'pagination-control\n' > "$out_dir/contributors.md"
+          cat > "$out_dir/paginated.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-042";
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            fs.appendFileSync(`${outDir}/pagination-api.log`, `${req.method} ${url.pathname}${url.search}\n`);
+            if (url.pathname === "/user") return json(res, { login: "pagination-bot", id: 42042 });
+            if (url.pathname.endsWith("/contributors") && url.searchParams.get("page") === "2") {
+              return json(res, [{ login: "page-two", contributions: 1 }]);
+            }
+            if (url.pathname.endsWith("/contributors")) {
+              res.writeHead(200, {
+                "content-type": "application/json",
+                "link": `<http://127.0.0.1:18042${url.pathname}?page=2>; rel="next"`,
+              });
+              return res.end(JSON.stringify([{ login: "page-one", contributions: 1 }]));
+            }
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18042, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          cat > "$out_dir/rate-limit.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-042";
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            fs.appendFileSync(`${outDir}/rate-limit-api.log`, `${req.method} ${url.pathname}${url.search}\n`);
+            if (url.pathname === "/user") return json(res, { login: "rate-limit-bot", id: 42142 });
+            if (url.pathname.endsWith("/contributors")) return json(res, { message: "rate limit" }, 429);
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18142, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          nohup node "$out_dir/paginated.mjs" > "$out_dir/paginated.log" 2>&1 &
+          echo "$!" > "$out_dir/paginated.pid"
+          nohup node "$out_dir/rate-limit.mjs" > "$out_dir/rate-limit.log" 2>&1 &
+          echo "$!" > "$out_dir/rate-limit.pid"
+      - name: Run paginated API control
+        id: paginated
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: fake-token
+          github-api-url: http://127.0.0.1:18042
+          output-file: test-output/CP-GHA-042/contributors.md
+          state-file: test-output/CP-GHA-042/.contributors.jsonl
+          mode: check
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: "EXPECTED FAILURE: exhausted rate limit"
+        id: expected_failure
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: fake-token
+          github-api-url: http://127.0.0.1:18142
+          output-file: test-output/CP-GHA-042/rate-limit-contributors.md
+          state-file: test-output/CP-GHA-042/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: Verify API behavior
+        run: |
+          set -euo pipefail
+          test "${{ steps.paginated.outputs.changed }}" = "false"
+          grep -F "page=2" test-output/CP-GHA-042/pagination-api.log
+          test "${{ steps.expected_failure.outcome }}" = "failure"
+          grep -F "/contributors" test-output/CP-GHA-042/rate-limit-api.log
+          {
+            echo "expected_failure: true"
+            echo "expected_error: GitHub API request failed: 429"
+            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "control_output: test-output/CP-GHA-042/contributors.md"
+          } > test-output/CP-GHA-042/expected-failure.log
+          cat test-output/CP-GHA-042/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-042
+          path: test-output/CP-GHA-042
+
+  cp-gha-043:
+    name: CP-GHA-043 expected-failure-label-permission-and-secret-scan
+    needs: cp-gha-042
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-043') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Verify PAT secret
+        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
+      - name: Clean branch and prepare permission API
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          for pr in $(gh pr list --head contributors-please/update --state open --json number --jq '.[].number'); do
+            gh pr close "$pr" --delete-branch
+          done
+          git push origin :contributors-please/update || true
+          out_dir="test-output/CP-GHA-043"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"permission-control","name":"Permission Control","profile":"https://example.com/permission-control","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          JSONL
+          cat > "$out_dir/server.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-043";
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
+            if (url.pathname === "/user") return json(res, { login: "permission-bot", id: 43043 });
+            if (url.pathname.endsWith("/contributors")) return json(res, []);
+            if (url.pathname.includes("/labels/contributors-please%3A%20pending")) {
+              return json(res, { message: "not found" }, 404);
+            }
+            if (url.pathname.endsWith("/labels") && req.method === "POST") {
+              return json(res, { message: "Resource not accessible by integration" }, 403);
+            }
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18043, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+      - name: "EXPECTED FAILURE: labeling permission denied"
+        id: expected_failure
+        continue-on-error: true
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+          github-api-url: http://127.0.0.1:18043
+          output-file: test-output/CP-GHA-043/control-contributors.md
+          state-file: test-output/CP-GHA-043/.contributors.jsonl
+          mode: pull-request
+          entry-template: "{{login}}"
+          min-contributions: "999999"
+      - name: Verify permission failure and secret scan
+        env:
+          PAT: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
+        run: |
+          set -euo pipefail
+          test "${{ steps.expected_failure.outcome }}" = "failure"
+          if grep -R -F "$PAT" test-output/CP-GHA-043; then
+            echo "PAT leaked into generated files" >&2
+            exit 1
+          fi
+          grep -F "POST" test-output/CP-GHA-043/api.log
+          {
+            echo "expected_failure: true"
+            echo "expected_error: GitHub label creation failed: 403"
+            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "control_output: test-output/CP-GHA-043/control-contributors.md"
+            echo "artifact: cp-gha-043"
+          } > test-output/CP-GHA-043/expected-failure.log
+          cat test-output/CP-GHA-043/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-043
+          path: test-output/CP-GHA-043
+
+  cp-gha-048:
+    name: CP-GHA-048 explicit endpoint overrides
+    needs: cp-gha-043
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-048') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare endpoint fixture and fake API
+        run: |
+          set -euo pipefail
+          git checkout --orphan "cp-gha-048-${GITHUB_RUN_ID}"
+          git rm -rf . || true
+          out_dir="test-output/CP-GHA-048"
+          mkdir -p "$out_dir" src
+          printf 'endpoint fixture\n' > src/endpoint-fixture.txt
+          git add src/endpoint-fixture.txt
+          GIT_AUTHOR_DATE="2026-05-08T00:00:00Z" \
+          GIT_COMMITTER_DATE="2026-05-08T00:00:00Z" \
+          git -c user.name="Endpoint User" \
+            -c user.email="48048+endpoint-login@users.noreply.viewer.example.test" \
+            commit -m "test: CP-GHA-048 endpoint identity"
+          cat > "$out_dir/server.mjs" <<'JS'
+          import http from "node:http";
+          import fs from "node:fs";
+          const outDir = "test-output/CP-GHA-048";
+          const server = http.createServer((req, res) => {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            fs.appendFileSync(`${outDir}/rest-api.log`, `${req.method} ${url.pathname}${url.search}\n`);
+            if (url.pathname === "/rest/user") return json(res, { login: "endpoint-bot", id: 48048 });
+            if (url.pathname.endsWith("/contributors")) {
+              return json(res, [{ login: "endpoint-login", name: "Endpoint User", contributions: 1 }]);
+            }
+            if (url.pathname === "/graphql") {
+              fs.appendFileSync(`${outDir}/graphql-api.log`, `${req.method} ${url.pathname}\n`);
+              return json(res, { data: {} });
+            }
+            json(res, { error: "not found", path: url.pathname }, 404);
+          });
+          server.listen(18048, "127.0.0.1");
+          function json(res, value, status = 200) {
+            res.writeHead(status, { "content-type": "application/json" });
+            res.end(JSON.stringify(value));
+          }
+          JS
+          nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          echo "configured_graphql_url=http://127.0.0.1:18048/graphql" > "$out_dir/effective-endpoints.txt"
+          echo "configured_rest_url=http://127.0.0.1:18048/rest" >> "$out_dir/effective-endpoints.txt"
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Run endpoint override fixture
+        id: endpoints
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: fake-token
+          github-server-url: https://viewer.example.test
+          github-api-url: http://127.0.0.1:18048/rest
+          github-graphql-url: http://127.0.0.1:18048/graphql
+          output-file: test-output/CP-GHA-048/contributors.md
+          state-file: test-output/CP-GHA-048/.contributors.jsonl
+          mode: check
+          dry-run: "true"
+          bootstrap: "true"
+          entry-template: "[{{login}}]({{profile}})"
+      - name: Verify endpoint overrides
+        env:
+          CONTRIBUTORS_JSON: ${{ steps.endpoints.outputs.contributors-json }}
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs = require("fs");
+          const records = JSON.parse(process.env.CONTRIBUTORS_JSON);
+          const record = records.find(item => item.login === "endpoint-login");
+          if (!record) throw new Error("endpoint-login was not discovered");
+          if (record.profile !== "https://viewer.example.test/endpoint-login") {
+            throw new Error(`unexpected profile ${record.profile}`);
+          }
+          fs.writeFileSync("test-output/CP-GHA-048/contributors.md", `[${record.login}](${record.profile})\n`);
+          fs.writeFileSync("test-output/CP-GHA-048/contributors.json", JSON.stringify(records, null, 2));
+          JS
+          grep -F "GET /rest/user" test-output/CP-GHA-048/rest-api.log
+          grep -F "GET /rest/repos/" test-output/CP-GHA-048/rest-api.log
+          touch test-output/CP-GHA-048/graphql-api.log
+          if grep -E 'https?://' test-output/CP-GHA-048/rest-api.log; then
+            echo "unexpected absolute third-party REST destination" >&2
+            exit 1
+          fi
+          {
+            echo "### CP-GHA-048"
+            echo ""
+            echo "- output: test-output/CP-GHA-048/contributors.md"
+            echo "- rest-api-log: test-output/CP-GHA-048/rest-api.log"
+            echo "- graphql-api-log: test-output/CP-GHA-048/graphql-api.log"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-048
+          path: test-output/CP-GHA-048
