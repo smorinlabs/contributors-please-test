@@ -398,6 +398,8 @@ jobs:
             'INPUT_OUTPUT-FILE=test-output/CP-GHA-024/control-contributors.md' \
             'INPUT_STATE-FILE=test-output/CP-GHA-024/.contributors.jsonl' \
             'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
             'INPUT_ENTRY-TEMPLATE={{login}}' \
             'INPUT_MIN-CONTRIBUTIONS=1' \
             node .github/actions/contributors-please-action/dist/index.js
