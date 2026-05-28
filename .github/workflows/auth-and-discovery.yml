@@ -47,37 +47,53 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify App and PAT secrets
-        run: |
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}"
-          test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Prepare fixture
+      - name: Prepare fake App fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-001"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
+          openssl genrsa 2048 > "$out_dir/app-private-key.pem"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"app-token-tester","name":"App Token Tester","profile":"https://example.com/app-token-tester","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"App Token Tester","emoji":"app","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-      - name: Run contributors-please
+          nohup node scripts/fake-github-api.mjs 18001 "$out_dir" contributors-please-test-app 26001 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18001/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18001/__ready >/dev/null
+          echo "CP_GHA_001_API=http://127.0.0.1:18001" >> "$GITHUB_ENV"
+      - name: Run contributors-please with App and PAT inputs
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          app-id: ${{ secrets.CONTRIBUTORS_PLEASE_APP_ID }}
-          private-key: ${{ secrets.CONTRIBUTORS_PLEASE_PRIVATE_KEY }}
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-001/contributors.md
-          state-file: test-output/CP-GHA-001/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_APP-ID=12345' \
+            "INPUT_PRIVATE-KEY=$(cat test-output/CP-GHA-001/app-private-key.pem)" \
+            'INPUT_PAT=fake-pat-must-not-win' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_001_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-001/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-001/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify App token path
         run: |
           set -euo pipefail
           test "${{ steps.contributors.outputs.token-source }}" = "app"
-          printf '%s\n' "${{ steps.contributors.outputs.committer-login }}" | grep -F "[bot]"
+          test "${{ steps.contributors.outputs.committer-login }}" = "contributors-please-test-app[bot]"
+          grep -F "GET /repos/" test-output/CP-GHA-001/api.log
+          grep -F "/installation" test-output/CP-GHA-001/api.log
+          grep -F "/app/installations/26001/access_tokens" test-output/CP-GHA-001/api.log
           grep -F "app-token-tester App Token Tester" test-output/CP-GHA-001/contributors.md
           {
             echo "### CP-GHA-001"
@@ -85,6 +101,7 @@ jobs:
             echo "- output: test-output/CP-GHA-001/contributors.md"
             echo "- token-source: ${{ steps.contributors.outputs.token-source }}"
             echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
+            echo "- fake-api-log: test-output/CP-GHA-001/api.log"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -106,32 +123,48 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Prepare fixture
+      - name: Prepare fake PAT fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-002"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"pat-token-tester","name":"PAT Token Tester","profile":"https://example.com/pat-token-tester","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"PAT Token Tester","emoji":"pat","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-      - name: Run contributors-please
+          nohup node scripts/fake-github-api.mjs 18002 "$out_dir" pat-token-user 26002 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18002/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18002/__ready >/dev/null
+          echo "CP_GHA_002_API=http://127.0.0.1:18002" >> "$GITHUB_ENV"
+      - name: Run contributors-please with PAT
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-002/contributors.md
-          state-file: test-output/CP-GHA-002/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-pat-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_002_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-002/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-002/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify PAT path
         run: |
           set -euo pipefail
           test "${{ steps.contributors.outputs.token-source }}" = "pat"
-          test -n "${{ steps.contributors.outputs.committer-login }}"
+          test "${{ steps.contributors.outputs.committer-login }}" = "pat-token-user"
+          grep -F "GET /user" test-output/CP-GHA-002/api.log
           grep -F "pat-token-tester PAT Token Tester" test-output/CP-GHA-002/contributors.md
           {
             echo "### CP-GHA-002"
@@ -160,46 +193,70 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret for control
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Prepare fixture
+      - name: Prepare missing-credentials fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-003"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          cat > "$out_dir/control.jsonl" <<'JSONL'
           {"login":"missing-credentials-control","name":"Missing Credentials Control","profile":"https://example.com/missing-credentials-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Missing Credentials Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          cp "$out_dir/control.jsonl" "$out_dir/.contributors.jsonl"
+          nohup node scripts/fake-github-api.mjs 18003 "$out_dir" missing-credentials-control 26003 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18003/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18003/__ready >/dev/null
+          echo "CP_GHA_003_API=http://127.0.0.1:18003" >> "$GITHUB_ENV"
       - name: Run valid control
-        id: control
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-003/control-contributors.md
-          state-file: test-output/CP-GHA-003/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          min-contributions: "999999"
-      - name: "EXPECTED FAILURE: missing credentials"
-        id: expected_failure
-        continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          output-file: test-output/CP-GHA-003/contributors.md
-          state-file: test-output/CP-GHA-003/.contributors.jsonl
-          mode: commit
-      - name: Assert expected failure occurred
         run: |
-          set -euo pipefail
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-control-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_003_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-003/control-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-003/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: "EXPECTED FAILURE: missing credentials"
+        run: |
+          set +e
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            "INPUT_GITHUB-API-URL=${CP_GHA_003_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-003/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-003/failed-state.jsonl' \
+            'INPUT_MODE=commit' \
+            node .github/actions/contributors-please-action/dist/index.js \
+              > test-output/CP-GHA-003/expected-failure.raw.log 2>&1
+          status=$?
+          set -e
+          cat test-output/CP-GHA-003/expected-failure.raw.log
+          test "$status" != "0"
+          grep -F "Provide either app-id + private-key, or pat." test-output/CP-GHA-003/expected-failure.raw.log
+          test ! -f test-output/CP-GHA-003/contributors.md
+          test ! -f test-output/CP-GHA-003/failed-state.jsonl
           {
             echo "expected_failure: true"
             echo "expected_error: Provide either app-id + private-key, or pat."
-            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "observed_status: $status"
             echo "control_output: test-output/CP-GHA-003/control-contributors.md"
-            echo "artifact: cp-gha-003"
+            echo "raw_log: test-output/CP-GHA-003/expected-failure.raw.log"
           } > test-output/CP-GHA-003/expected-failure.log
-          test "${{ steps.expected_failure.outcome }}" = "failure"
           cat test-output/CP-GHA-003/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -221,29 +278,71 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Prepare fixture
+      - name: Prepare isolated discovery repository
         run: |
           set -euo pipefail
-          git pull --ff-only origin "$GITHUB_REF_NAME"
-          mkdir -p test-output/CP-GHA-004
-          git log --no-merges --name-only --pretty='format:%H %an <%ae>' > test-output/CP-GHA-004/git-log-evidence.txt
-      - name: Run contributors-please
+          out_dir="$GITHUB_WORKSPACE/test-output/CP-GHA-004"
+          repo="$out_dir/repo"
+          rm -rf "$out_dir"
+          mkdir -p "$repo"
+          git init "$repo"
+          git -C "$repo" config user.name "Fixture Committer"
+          git -C "$repo" config user.email "fixture@example.com"
+          echo "one" > "$repo/docs.md"
+          git -C "$repo" add docs.md
+          GIT_AUTHOR_NAME="Discovery Tester" \
+            GIT_AUTHOR_EMAIL="26004+discovery-tester@users.noreply.github.com" \
+            GIT_AUTHOR_DATE="2026-05-27T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-27T12:00:00Z" \
+            git -C "$repo" commit -m "docs: seed discovery"
+          echo "two" >> "$repo/docs.md"
+          git -C "$repo" add docs.md
+          GIT_AUTHOR_NAME="Discovery Tester" \
+            GIT_AUTHOR_EMAIL="26004+discovery-tester@users.noreply.github.com" \
+            GIT_AUTHOR_DATE="2026-05-28T12:00:00Z" \
+            GIT_COMMITTER_DATE="2026-05-28T12:00:00Z" \
+            git -C "$repo" commit -m "docs: update discovery"
+          git -C "$repo" log --no-merges --name-only --pretty='format:%H %an <%ae>' > "$out_dir/git-log-evidence.txt"
+          cat > "$out_dir/api-contributors.json" <<'JSON'
+          [{"login":"discovery-tester","avatar_url":"","html_url":"https://github.com/discovery-tester","contributions":2}]
+          JSON
+          nohup node scripts/fake-github-api.mjs 18004 "$out_dir" discovery-pat-user 26004 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18004/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18004/__ready >/dev/null
+          echo "CP_GHA_004_API=http://127.0.0.1:18004" >> "$GITHUB_ENV"
+      - name: Run contributors-please discovery
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-004/contributors.md
-          state-file: test-output/CP-GHA-004/.contributors.jsonl
-          mode: commit
-          bootstrap: "true"
-          entry-template: "{{login}} {{title}}"
+        run: |
+          action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
+          cd test-output/CP-GHA-004/repo
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-discovery-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_004_API}" \
+            'INPUT_OUTPUT-FILE=contributors.md' \
+            'INPUT_STATE-FILE=.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_BOOTSTRAP=true' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            node "$action_dist"
+          cp contributors.md ../contributors.md
+          cp .contributors.jsonl ../.contributors.jsonl
       - name: Verify discovery smoke
         run: |
           set -euo pipefail
           test -s test-output/CP-GHA-004/git-log-evidence.txt
           test -s test-output/CP-GHA-004/.contributors.jsonl
+          grep -F "discovery-tester" test-output/CP-GHA-004/contributors.md
+          grep -F '"commits":2' test-output/CP-GHA-004/.contributors.jsonl
           test -n '${{ steps.contributors.outputs.contributors-json }}'
           {
             echo "### CP-GHA-004"
@@ -272,53 +371,87 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Prepare control fixture
+      - name: Prepare shallow-checkout fixture
         run: |
           set -euo pipefail
-          git pull --ff-only origin "$GITHUB_REF_NAME"
-          out_dir="test-output/CP-GHA-005"
-          mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          out_dir="$GITHUB_WORKSPACE/test-output/CP-GHA-005"
+          source_repo="$out_dir/source"
+          shallow_repo="$out_dir/shallow"
+          rm -rf "$out_dir"
+          mkdir -p "$source_repo"
+          git init "$source_repo"
+          git -C "$source_repo" config user.name "Fixture Committer"
+          git -C "$source_repo" config user.email "fixture@example.com"
+          echo "one" > "$source_repo/file.txt"
+          git -C "$source_repo" add file.txt
+          git -C "$source_repo" commit -m "test: one"
+          echo "two" >> "$source_repo/file.txt"
+          git -C "$source_repo" add file.txt
+          git -C "$source_repo" commit -m "test: two"
+          cat > "$source_repo/.contributors.jsonl" <<'JSONL'
           {"login":"shallow-control","name":"Shallow Control","profile":"https://example.com/shallow-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Shallow Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
+          git clone --depth=1 "file://$source_repo" "$shallow_repo"
+          test "$(git -C "$shallow_repo" rev-parse --is-shallow-repository)" = "true"
+          nohup node scripts/fake-github-api.mjs 18005 "$out_dir" shallow-pat-user 26005 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18005/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18005/__ready >/dev/null
+          echo "CP_GHA_005_API=http://127.0.0.1:18005" >> "$GITHUB_ENV"
       - name: Run valid full-depth control
-        id: control
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-005/control-contributors.md
-          state-file: test-output/CP-GHA-005/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          min-contributions: "999999"
-      - name: Make repository shallow
         run: |
-          set -euo pipefail
-          git fetch --depth=1 origin "$GITHUB_REF_NAME"
-          test "$(git rev-parse --is-shallow-repository)" = "true"
+          action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
+          cd test-output/CP-GHA-005/source
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-control-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_005_API}" \
+            'INPUT_OUTPUT-FILE=control-contributors.md' \
+            'INPUT_STATE-FILE=.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node "$action_dist"
+          cp control-contributors.md ../control-contributors.md
       - name: "EXPECTED FAILURE: shallow checkout"
-        id: expected_failure
-        continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-005/contributors.md
-          state-file: test-output/CP-GHA-005/.contributors.jsonl
-          mode: commit
-          bootstrap: "true"
-      - name: Assert expected failure occurred
         run: |
-          set -euo pipefail
+          set +e
+          action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
+          cd test-output/CP-GHA-005/shallow
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-shallow-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_005_API}" \
+            'INPUT_OUTPUT-FILE=contributors.md' \
+            'INPUT_STATE-FILE=.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_BOOTSTRAP=true' \
+            node "$action_dist" > ../expected-failure.raw.log 2>&1
+          status=$?
+          set -e
+          cd "$GITHUB_WORKSPACE"
+          cat test-output/CP-GHA-005/expected-failure.raw.log
+          test "$status" != "0"
+          grep -F "fetch-depth: 0" test-output/CP-GHA-005/expected-failure.raw.log
+          test ! -f test-output/CP-GHA-005/contributors.md
           {
             echo "expected_failure: true"
             echo "expected_error: fetch-depth: 0"
-            echo "observed_outcome: ${{ steps.expected_failure.outcome }}"
+            echo "observed_status: $status"
             echo "control_output: test-output/CP-GHA-005/control-contributors.md"
-            echo "artifact: cp-gha-005"
+            echo "raw_log: test-output/CP-GHA-005/expected-failure.raw.log"
           } > test-output/CP-GHA-005/expected-failure.log
-          test "${{ steps.expected_failure.outcome }}" = "failure"
           cat test-output/CP-GHA-005/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -340,37 +473,77 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
-      - name: Prepare fixture
+      - name: Prepare self-exclusion fixture
         run: |
           set -euo pipefail
           git pull --ff-only origin "$GITHUB_REF_NAME"
           out_dir="test-output/CP-GHA-006"
+          rm -rf "$out_dir"
           mkdir -p "$out_dir"
-          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          cat > "$out_dir/filtered.jsonl" <<'JSONL'
           {"login":"self-exclusion-control","name":"Self Exclusion Control","profile":"https://example.com/self-exclusion-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Self Exclusion Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
+          {"login":"self-exclusion-bot","name":"Self Exclusion Bot","profile":"https://example.com/self-exclusion-bot","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Self Exclusion Bot","emoji":"bot","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-      - name: Run contributors-please
+          cp "$out_dir/filtered.jsonl" "$out_dir/unignore.jsonl"
+          nohup node scripts/fake-github-api.mjs 18006 "$out_dir" self-exclusion-bot 26006 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18006/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18006/__ready >/dev/null
+          echo "CP_GHA_006_API=http://127.0.0.1:18006" >> "$GITHUB_ENV"
+      - name: Run contributors-please with self-exclusion
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-006/contributors.md
-          state-file: test-output/CP-GHA-006/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-self-exclusion-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_006_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-006/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-006/filtered.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: Run contributors-please with unignore
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_REF_NAME="$GITHUB_REF_NAME" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-self-exclusion-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_006_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-006/unignore-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-006/unignore.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            'INPUT_UNIGNORE=self-exclusion-bot' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify self-exclusion summary
         run: |
           set -euo pipefail
-          test -n "${{ steps.contributors.outputs.committer-login }}"
+          test "${{ steps.contributors.outputs.committer-login }}" = "self-exclusion-bot"
           grep -F "Self-excluded committer" "$GITHUB_STEP_SUMMARY"
           grep -F "self-exclusion-control Self Exclusion Control" test-output/CP-GHA-006/contributors.md
+          if grep -F "self-exclusion-bot Self Exclusion Bot" test-output/CP-GHA-006/contributors.md; then
+            echo "self-exclusion-bot rendered without unignore" >&2
+            exit 1
+          fi
+          grep -F "self-exclusion-bot Self Exclusion Bot" test-output/CP-GHA-006/unignore-contributors.md
+          cp test-output/CP-GHA-006/filtered.jsonl test-output/CP-GHA-006/.contributors.jsonl
           {
             echo "### CP-GHA-006"
             echo ""
             echo "- output: test-output/CP-GHA-006/contributors.md"
+            echo "- unignore-output: test-output/CP-GHA-006/unignore-contributors.md"
             echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

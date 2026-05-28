@@ -30,6 +30,22 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/user") {
     return json(res, { login, id });
   }
+  const user = url.pathname.match(/^\/users\/(.+)$/);
+  if (user && req.method === "GET") {
+    return json(res, { login: decodeURIComponent(user[1]), id });
+  }
+  if (url.pathname.endsWith("/installation") && req.method === "GET") {
+    return json(res, { id, app_slug: login.replace(/\[bot\]$/, "") });
+  }
+  const appToken = url.pathname.match(/\/app\/installations\/(\d+)\/access_tokens$/);
+  if (appToken && req.method === "POST") {
+    return json(res, {
+      token: `fake-installation-token-${appToken[1]}`,
+      expires_at: "2099-01-01T00:00:00.000Z",
+      permissions: { contents: "write", issues: "write", pull_requests: "write" },
+      repository_selection: "selected",
+    }, 201);
+  }
   if (url.pathname.endsWith("/contributors")) {
     return json(res, readContributorsFixture());
   }
