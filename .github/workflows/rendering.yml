@@ -46,8 +46,6 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
@@ -61,28 +59,52 @@ jobs:
           {"login":"beta-render","name":"Beta Render","profile":"https://example.com/beta-render","avatar":"","source":"commit","pinned":false,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":2,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           {"login":"gamma-render","name":"Gamma Render","profile":"https://example.com/gamma-render","avatar":"","source":"commit","pinned":false,"categories":["quality"],"title":"Quality Contributor","emoji":"test","commits":1,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           JSONL
+          nohup node scripts/fake-github-api.mjs 18014 "$out_dir" render-bot-014 14014 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18014/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18014/__ready >/dev/null
+          echo "CP_GHA_014_API=http://127.0.0.1:18014" >> "$GITHUB_ENV"
       - name: Run empty bare rendering
         id: empty
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-014/empty-contributors.md
-          state-file: test-output/CP-GHA-014/empty.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          empty-text: No contributors selected.
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_014_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-014/empty-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-014/empty.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_EMPTY-TEXT=No contributors selected.' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Run populated bare rendering
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-014/contributors.md
-          state-file: test-output/CP-GHA-014/.contributors.jsonl
-          mode: commit
-          entry-template: "{{login}}"
-          columns-per-row: "2"
-          min-contributions: "1"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_014_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-014/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-014/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_COLUMNS-PER-ROW=2' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify output
         run: |
           set -euo pipefail
@@ -121,8 +143,6 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
@@ -151,29 +171,53 @@ jobs:
           End.
           EOF
           sha256sum "$out_dir/default-template.md" "$out_dir/template.md" > "$out_dir/template.before.sha256"
+          nohup node scripts/fake-github-api.mjs 18015 "$out_dir" render-bot-015 14015 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18015/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18015/__ready >/dev/null
+          echo "CP_GHA_015_API=http://127.0.0.1:18015" >> "$GITHUB_ENV"
       - name: Run default placeholder template
         id: default_template
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-015/default-contributors.md
-          state-file: test-output/CP-GHA-015/default.jsonl
-          mode: commit
-          template-file: test-output/CP-GHA-015/default-template.md
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_015_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-015/default-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-015/default.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_TEMPLATE-FILE=test-output/CP-GHA-015/default-template.md' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Run custom placeholder template
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-015/contributors.md
-          state-file: test-output/CP-GHA-015/.contributors.jsonl
-          mode: commit
-          template-file: test-output/CP-GHA-015/template.md
-          template-placeholder: "[[contributors]]"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_015_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-015/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-015/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_TEMPLATE-FILE=test-output/CP-GHA-015/template.md' \
+            'INPUT_TEMPLATE-PLACEHOLDER=[[contributors]]' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify output
         run: |
           set -euo pipefail
@@ -219,8 +263,6 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
@@ -231,40 +273,71 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"header-footer-tester","name":"Header Footer Tester","profile":"https://example.com/header-footer-tester","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Header Footer Tester","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           JSONL
+          nohup node scripts/fake-github-api.mjs 18016 "$out_dir" render-bot-016 14016 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18016/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18016/__ready >/dev/null
+          echo "CP_GHA_016_API=http://127.0.0.1:18016" >> "$GITHUB_ENV"
       - name: Run header-only rendering
         id: header_only
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-016/header-only.md
-          state-file: test-output/CP-GHA-016/.contributors.jsonl
-          mode: commit
-          header: "# Header Only Contributors"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_016_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-016/header-only.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-016/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_HEADER=# Header Only Contributors' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Run footer-only rendering
         id: footer_only
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-016/footer-only.md
-          state-file: test-output/CP-GHA-016/.contributors.jsonl
-          mode: commit
-          footer: "Generated by footer-only case."
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_016_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-016/footer-only.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-016/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_FOOTER=Generated by footer-only case.' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Run header-footer rendering
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-016/contributors.md
-          state-file: test-output/CP-GHA-016/.contributors.jsonl
-          mode: commit
-          header: "# Header Footer Contributors"
-          footer: "Generated by CP-GHA-016."
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_016_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-016/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-016/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_HEADER=# Header Footer Contributors' \
+            'INPUT_FOOTER=Generated by CP-GHA-016.' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify output
         run: |
           set -euo pipefail
@@ -309,8 +382,6 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
@@ -346,30 +417,54 @@ jobs:
             fs.writeFileSync(`${path}.suffix`, text.slice(text.indexOf(end)));
           }
           JS
+          nohup node scripts/fake-github-api.mjs 18017 "$out_dir" render-bot-017 14017 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18017/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18017/__ready >/dev/null
+          echo "CP_GHA_017_API=http://127.0.0.1:18017" >> "$GITHUB_ENV"
       - name: Run default-marker in-place rendering
         id: default_markers
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-017/default-markers.md
-          state-file: test-output/CP-GHA-017/.contributors.jsonl
-          mode: commit
-          in-place: "true"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_017_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-017/default-markers.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-017/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_IN-PLACE=true' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Run custom-marker in-place rendering
         id: contributors
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-017/contributors.md
-          state-file: test-output/CP-GHA-017/.contributors.jsonl
-          mode: commit
-          in-place: "true"
-          in-place-marker-start: "<!-- cp:start -->"
-          in-place-marker-end: "<!-- cp:end -->"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_017_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-017/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-017/.contributors.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_IN-PLACE=true' \
+            'INPUT_IN-PLACE-MARKER-START=<!-- cp:start -->' \
+            'INPUT_IN-PLACE-MARKER-END=<!-- cp:end -->' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Verify output
         run: |
           set -euo pipefail
@@ -429,8 +524,6 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - name: Verify PAT secret
-        run: test -n "${{ secrets.CONTRIBUTORS_PLEASE_PAT }}"
       - name: Prepare fixture
         run: |
           set -euo pipefail
@@ -471,82 +564,129 @@ jobs:
           cp "$out_dir/missing-marker.md" "$out_dir/missing-marker.before.md"
           cp "$out_dir/duplicate-marker.md" "$out_dir/duplicate-marker.before.md"
           cp "$out_dir/inverted-marker.md" "$out_dir/inverted-marker.before.md"
+          nohup node scripts/fake-github-api.mjs 18018 "$out_dir" render-bot-018 14018 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18018/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18018/__ready >/dev/null
+          echo "CP_GHA_018_API=http://127.0.0.1:18018" >> "$GITHUB_ENV"
       - name: Run valid control
         id: control
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-018/control-contributors.md
-          state-file: test-output/CP-GHA-018/.contributors.jsonl
-          mode: check
-          entry-template: "{{login}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_018_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-018/control-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-018/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: missing in-place file"
         id: missing_file
         continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-018/missing-file.md
-          state-file: test-output/CP-GHA-018/.contributors.jsonl
-          mode: check
-          dry-run: "true"
-          in-place: "true"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_018_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-018/missing-file.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-018/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=true' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_IN-PLACE=true' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: missing in-place marker"
         id: missing_marker
         continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-018/missing-marker.md
-          state-file: test-output/CP-GHA-018/.contributors.jsonl
-          mode: check
-          dry-run: "true"
-          in-place: "true"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_018_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-018/missing-marker.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-018/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=true' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_IN-PLACE=true' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: duplicate in-place marker"
         id: duplicate_marker
         continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-018/duplicate-marker.md
-          state-file: test-output/CP-GHA-018/.contributors.jsonl
-          mode: check
-          dry-run: "true"
-          in-place: "true"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_018_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-018/duplicate-marker.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-018/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=true' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_IN-PLACE=true' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: inverted in-place marker"
         id: inverted_marker
         continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-018/inverted-marker.md
-          state-file: test-output/CP-GHA-018/.contributors.jsonl
-          mode: check
-          dry-run: "true"
-          in-place: "true"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_018_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-018/inverted-marker.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-018/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=true' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_IN-PLACE=true' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: "EXPECTED FAILURE: mutually exclusive wrapper inputs"
         id: mutual_exclusion
         continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
-          output-file: test-output/CP-GHA-018/contributors.md
-          state-file: test-output/CP-GHA-018/.contributors.jsonl
-          mode: check
-          dry-run: "true"
-          template-file: test-output/CP-GHA-018/template.md
-          header: "# Invalid"
-          entry-template: "- {{login}} {{title}}"
-          min-contributions: "999999"
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_018_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-018/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-018/.contributors.jsonl' \
+            'INPUT_MODE=check' \
+            'INPUT_DRY-RUN=true' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_TEMPLATE-FILE=test-output/CP-GHA-018/template.md' \
+            'INPUT_HEADER=# Invalid' \
+            'INPUT_ENTRY-TEMPLATE=- {{login}} {{title}}' \
+            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            node .github/actions/contributors-please-action/dist/index.js
       - name: Assert expected failure occurred
         run: |
           set -euo pipefail
