@@ -576,7 +576,7 @@ jobs:
             'INPUT_STATE-FILE=test-output/CP-GHA-038/.contributors.jsonl' \
             'INPUT_MODE=commit' \
             'INPUT_ENTRY-TEMPLATE={{login}}' \
-            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
             node test-output/CP-GHA-038/contributors-please-action/dist/index.js
       - name: Verify build smoke
         run: |
@@ -628,7 +628,7 @@ jobs:
           output_file: test-output/CP-GHA-044/cli-contributors.md
           state_file: test-output/CP-GHA-044/.contributors.jsonl
           entry_template: "{{login}} {{title}}"
-          min_contributions: 999999
+          min_contributions: 1
           YAML
           nohup node scripts/fake-github-api.mjs 18044 "$out_dir" cli-parity-token 26044 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
@@ -664,7 +664,7 @@ jobs:
             'INPUT_MODE=check' \
             'INPUT_DRY-RUN=true' \
             'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
-            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
             node .github/actions/contributors-please-action/dist/index.js
       - name: Verify CLI and Action parity
         run: |
@@ -736,7 +736,7 @@ jobs:
             'INPUT_STATE-FILE=test-output/CP-GHA-047/default.jsonl' \
             'INPUT_MODE=commit' \
             'INPUT_ENTRY-TEMPLATE={{login}}' \
-            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
             node .github/actions/contributors-please-action/dist/index.js
       - name: Multiline commit message
         id: multiline_message
@@ -759,7 +759,7 @@ jobs:
             'INPUT_MODE=commit' \
             "INPUT_COMMIT-MESSAGE=${CP_GHA_047_MULTILINE_MESSAGE}" \
             'INPUT_ENTRY-TEMPLATE={{login}}' \
-            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
             node .github/actions/contributors-please-action/dist/index.js
       - name: Literal backslash-n commit message
         id: literal_message
@@ -776,7 +776,7 @@ jobs:
             'INPUT_MODE=commit' \
             'INPUT_COMMIT-MESSAGE=docs: literal \n contributors update [skip ci]' \
             'INPUT_ENTRY-TEMPLATE={{login}}' \
-            'INPUT_MIN-CONTRIBUTIONS=999999' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
             node .github/actions/contributors-please-action/dist/index.js
       - name: Verify commit messages
         run: |
