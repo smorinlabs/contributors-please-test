@@ -174,6 +174,7 @@ jobs:
           output_file: contributors.md
           state_file: .contributors.jsonl
           entry_template: "{{login}}"
+          min_contributions: 1
           YAML
           echo "py acceptance" > "$repo/README.md"
           git -C "$repo" add .contributors.yml README.md
