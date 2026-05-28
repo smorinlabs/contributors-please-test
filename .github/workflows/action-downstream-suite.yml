@@ -26,8 +26,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: contributors-please-action-downstream-${{ github.event.client_payload.source_run_id || inputs.source_run_id || github.run_id }}
-  cancel-in-progress: false
+  group: contributors-please-action-downstream-${{ github.event.client_payload.action_ref || inputs.action_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   suite:
