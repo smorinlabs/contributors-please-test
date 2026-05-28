@@ -77,6 +77,13 @@ jobs:
           JS
           nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18031/user >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18031/user >/dev/null
           echo "CP_GHA_031_API=http://127.0.0.1:18031" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
@@ -168,6 +175,13 @@ jobs:
           JS
           nohup node "$out_dir/proxy.mjs" > "$out_dir/proxy-server.log" 2>&1 &
           echo "$!" > "$out_dir/proxy.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18032/user >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18032/user >/dev/null
           echo "CP_GHA_032_API=http://api.cp-gha-032.test" >> "$GITHUB_ENV"
           echo "CP_GHA_032_PROXY=http://127.0.0.1:18032" >> "$GITHUB_ENV"
       - name: Run contributors-please through proxy
@@ -285,6 +299,13 @@ jobs:
           JS
           nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18041/user >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18041/user >/dev/null
           echo "CP_GHA_041_API=http://127.0.0.1:18041" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
@@ -403,6 +424,14 @@ jobs:
           echo "$!" > "$out_dir/paginated.pid"
           nohup node "$out_dir/rate-limit.mjs" > "$out_dir/rate-limit.log" 2>&1 &
           echo "$!" > "$out_dir/rate-limit.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18042/user >/dev/null && curl -fsS http://127.0.0.1:18142/user >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18042/user >/dev/null
+          curl -fsS http://127.0.0.1:18142/user >/dev/null
       - name: Run paginated API control
         id: paginated
         uses: ./.github/actions/contributors-please-action
@@ -504,6 +533,13 @@ jobs:
           JS
           nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18043/user >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18043/user >/dev/null
       - name: "EXPECTED FAILURE: labeling permission denied"
         id: expected_failure
         continue-on-error: true
@@ -588,6 +624,13 @@ jobs:
           JS
           nohup node "$out_dir/server.mjs" > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18048/rest/user >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18048/rest/user >/dev/null
           echo "configured_graphql_url=http://127.0.0.1:18048/graphql" > "$out_dir/effective-endpoints.txt"
           echo "configured_rest_url=http://127.0.0.1:18048/rest" >> "$out_dir/effective-endpoints.txt"
       - uses: actions/checkout@v4
