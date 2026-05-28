@@ -1,5 +1,7 @@
 name: contributors-please rendering
 
+run-name: ${{ github.workflow }} ${{ inputs.test_id || 'all' }} suite ${{ inputs.suite_run_id || github.run_id }} action ${{ inputs.action_ref || 'v1' }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +9,10 @@ on:
         description: contributors-please-action ref to test.
         required: false
         default: v1
+      suite_run_id:
+        description: Optional downstream suite run ID for orchestrator correlation.
+        required: false
+        default: manual
       test_id:
         description: CP-GHA rendering test ID to run, or all.
         required: false

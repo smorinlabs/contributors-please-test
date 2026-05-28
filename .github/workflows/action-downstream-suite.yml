@@ -1,0 +1,116 @@
+name: contributors-please action downstream suite
+
+run-name: action downstream source-run ${{ github.event.client_payload.source_run_id || inputs.source_run_id || github.run_id }} action-ref ${{ github.event.client_payload.action_ref || inputs.action_ref || 'main' }}
+
+on:
+  repository_dispatch:
+    types:
+      - contributors-please-action-updated
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: contributors-please-action ref to test.
+        required: false
+        default: main
+      library_ref:
+        description: contributors-please library ref to test.
+        required: false
+        default: main
+      source_run_id:
+        description: Upstream run ID used to correlate downstream runs.
+        required: false
+        default: manual
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: contributors-please-action-downstream-${{ github.event.client_payload.source_run_id || inputs.source_run_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  suite:
+    name: Dispatch and watch CP-GHA workflows
+    runs-on: ubuntu-latest
+    env:
+      ACTION_REF: ${{ github.event.client_payload.action_ref || inputs.action_ref || 'main' }}
+      LIBRARY_REF: ${{ github.event.client_payload.library_ref || inputs.library_ref || 'main' }}
+      SUITE_RUN_ID: ${{ github.event.client_payload.source_run_id || inputs.source_run_id || github.run_id }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Summarize downstream request
+        run: |
+          set -euo pipefail
+          {
+            echo "### contributors-please-action downstream suite"
+            echo ""
+            echo "- action ref: ${ACTION_REF}"
+            echo "- library ref: ${LIBRARY_REF}"
+            echo "- suite run id: ${SUITE_RUN_ID}"
+            echo "- source repo: ${{ github.event.client_payload.source_repo || 'manual' }}"
+            echo "- source workflow run: ${{ github.event.client_payload.source_workflow_run_id || 'manual' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dispatch CP-GHA workflows sequentially
+        run: |
+          set -euo pipefail
+
+          workflows=(
+            auth-and-discovery.yml
+            classification-and-state.yml
+            rendering.yml
+            modes-and-labels.yml
+            outputs-selection-config.yml
+            network-ghe-security.yml
+            bootstrap-cli-api-build.yml
+            acceptance-loopguards.yml
+          )
+
+          for workflow in "${workflows[@]}"; do
+            echo "::group::${workflow}"
+
+            args=(
+              workflow run "${workflow}"
+              --repo "${GITHUB_REPOSITORY}"
+              --ref main
+              -f test_id=all
+              -f action_ref="${ACTION_REF}"
+              -f suite_run_id="${SUITE_RUN_ID}"
+            )
+
+            if [[ "${workflow}" == "bootstrap-cli-api-build.yml" ]]; then
+              args+=(-f library_ref="${LIBRARY_REF}")
+            fi
+
+            gh "${args[@]}"
+
+            run_id=""
+            for _ in {1..60}; do
+              run_id="$(
+                gh run list \
+                  --repo "${GITHUB_REPOSITORY}" \
+                  --workflow "${workflow}" \
+                  --branch main \
+                  --limit 50 \
+                  --json databaseId,displayTitle,status \
+                  --jq ".[] | select(.displayTitle | contains(\"suite ${SUITE_RUN_ID}\")) | .databaseId" \
+                  | head -n 1
+              )"
+
+              if [[ -n "${run_id}" ]]; then
+                break
+              fi
+
+              sleep 5
+            done
+
+            if [[ -z "${run_id}" ]]; then
+              echo "Could not find downstream run for ${workflow} suite ${SUITE_RUN_ID}" >&2
+              exit 1
+            fi
+
+            echo "- ${workflow}: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >> "$GITHUB_STEP_SUMMARY"
+            gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 15
+            echo "::endgroup::"
+          done

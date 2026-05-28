@@ -46,6 +46,11 @@ const expectedWorkflows = {
   ],
   "acceptance-loopguards.yml": ["039", "040"],
 };
+const orchestratorWorkflow = "action-downstream-suite.yml";
+const expectedWorkflowFiles = [
+  ...Object.keys(expectedWorkflows),
+  orchestratorWorkflow,
+].sort();
 
 const coreJobs = [
   "schema",
@@ -178,8 +183,8 @@ function sectionBetween(text, startMarker, endMarker) {
 
 const workflowFiles = readdirSync(workflowDir).filter(file => file.endsWith(".yml")).sort();
 assert(
-  JSON.stringify(workflowFiles) === JSON.stringify(Object.keys(expectedWorkflows).sort()),
-  `expected workflow set ${Object.keys(expectedWorkflows).sort().join(", ")}, found ${workflowFiles.join(", ")}`,
+  JSON.stringify(workflowFiles) === JSON.stringify(expectedWorkflowFiles),
+  `expected workflow set ${expectedWorkflowFiles.join(", ")}, found ${workflowFiles.join(", ")}`,
 );
 
 const plannedGhaIds = [
@@ -200,6 +205,8 @@ for (const [file, ids] of Object.entries(expectedWorkflows)) {
     `${file} does not use the shared contributors-please-test concurrency group`,
   );
   assert(text.includes("action_ref:"), `${file} is missing workflow_dispatch action_ref input`);
+  assert(text.includes("suite_run_id:"), `${file} is missing workflow_dispatch suite_run_id input`);
+  assert(text.includes("run-name:"), `${file} is missing run-name for downstream suite run discovery`);
   const artifactUploads = [...text.matchAll(/uses: actions\/upload-artifact@v4/g)].length;
   const hiddenArtifactUploads = [...text.matchAll(/include-hidden-files: true/g)].length;
   assert(
@@ -215,6 +222,26 @@ for (const [file, ids] of Object.entries(expectedWorkflows)) {
     assert(text.includes(`test-output/${cpId}`), `${file} missing test-output path for ${cpId}`);
     assert(text.includes(`name: ${jobId}`), `${file} missing artifact named ${jobId}`);
   }
+}
+
+const orchestrator = readFileSync(join(workflowDir, orchestratorWorkflow), "utf8");
+for (const marker of [
+  "repository_dispatch:",
+  "contributors-please-action-updated",
+  "workflow_dispatch:",
+  "action_ref:",
+  "library_ref:",
+  "permissions:",
+  "actions: write",
+  "contents: read",
+  "workflow run",
+  "gh run watch",
+  "suite_run_id",
+]) {
+  assert(orchestrator.includes(marker), `${orchestratorWorkflow} missing ${marker}`);
+}
+for (const file of Object.keys(expectedWorkflows)) {
+  assert(orchestrator.includes(file), `${orchestratorWorkflow} does not dispatch ${file}`);
 }
 
 for (const id of expectedFailureIds) {
@@ -347,5 +374,5 @@ if (errors.length) {
 }
 
 console.log(
-  `validated ${workflowFiles.length} contributors-please-test workflows and ${plannedGhaIds.length} CP-GHA IDs`,
+  `validated ${Object.keys(expectedWorkflows).length} contributors-please-test workflows, 1 orchestrator workflow, and ${plannedGhaIds.length} CP-GHA IDs`,
 );
