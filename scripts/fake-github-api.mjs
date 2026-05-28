@@ -27,7 +27,7 @@ const server = http.createServer(async (req, res) => {
 
   fs.appendFileSync(`${outDir}/api.log`, `${req.method} ${url.pathname}${url.search}\n`);
 
-  if (url.pathname === "/user") {
+  if (url.pathname === "/user" || url.pathname.endsWith("/api/v3/user")) {
     return json(res, { login, id });
   }
   const user = url.pathname.match(/^\/users\/(.+)$/);
