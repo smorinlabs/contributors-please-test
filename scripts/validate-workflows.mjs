@@ -9,6 +9,9 @@ const workspace = resolve(testRepo, "..");
 
 const workflowDir = join(testRepo, ".github", "workflows");
 const testPlan = readFileSync(join(workspace, "contributors-please_TEST.md"), "utf8");
+const prd = readFileSync(join(workspace, "contributors-please_PRD.md"), "utf8");
+const actionYml = readFileSync(join(workspace, "contributors-please-action", "action.yml"), "utf8");
+const dashboard = readFileSync(join(testRepo, "DASHBOARD.md"), "utf8");
 const coreCi = readFileSync(
   join(workspace, "contributors-please", ".github", "workflows", "ci.yml"),
   "utf8",
@@ -71,12 +74,92 @@ const expectedFailureIds = new Set([
   "043",
 ]);
 
+const verifiedRuns = {
+  "auth-and-discovery.yml": "26567206204",
+  "classification-and-state.yml": "26565949591",
+  "rendering.yml": "26568635624",
+  "modes-and-labels.yml": "26566585329",
+  "outputs-selection-config.yml": "26568634901",
+  "network-ghe-security.yml": "26568360731",
+  "bootstrap-cli-api-build.yml": "26567834746",
+  "acceptance-loopguards.yml": "26568556124",
+};
+
+const artifactIds = {
+  "001": "7262690921",
+  "002": "7262694893",
+  "003": "7262698643",
+  "004": "7262702308",
+  "005": "7262706141",
+  "006": "7262710118",
+  "007": "7262159571",
+  "008": "7262164699",
+  "009": "7262169781",
+  "010": "7262174334",
+  "011": "7262178571",
+  "012": "7262182819",
+  "013": "7262186671",
+  "014": "7263313605",
+  "015": "7263317487",
+  "016": "7263321502",
+  "017": "7263325562",
+  "018": "7263329450",
+  "019": "7262191355",
+  "020": "7262194701",
+  "021": "7262428677",
+  "022": "7262432216",
+  "023": "7262435689",
+  "024": "7262440541",
+  "025": "7262445647",
+  "026": "7262450944",
+  "027": "7263288686",
+  "028": "7263291796",
+  "029": "7263295209",
+  "030": "7263299072",
+  "031": "7263174239",
+  "032": "7263177847",
+  "033": "7262956350",
+  "034": "7262960151",
+  "035": "7262964497",
+  "036": "7262971221",
+  "037": "7262983003",
+  "038": "7262995310",
+  "039": "7263257452",
+  "040": "7263262774",
+  "041": "7263181324",
+  "042": "7263184334",
+  "043": "7263188455",
+  "044": "7263000802",
+  "045": "7263303842",
+  "046": "7263308911",
+  "047": "7263004402",
+  "048": "7263191884",
+};
+
 const errors = [];
 
 function assert(condition, message) {
   if (!condition) {
     errors.push(message);
   }
+}
+
+function uniq(values) {
+  return [...new Set(values)];
+}
+
+function itemChecked(prefix, id) {
+  return testPlan.includes(`- [x] **${prefix}-${id}**`);
+}
+
+function sectionBetween(text, startMarker, endMarker) {
+  const start = text.indexOf(startMarker);
+  assert(start !== -1, `missing section ${startMarker}`);
+  if (start === -1) {
+    return "";
+  }
+  const end = endMarker ? text.indexOf(endMarker, start + startMarker.length) : -1;
+  return text.slice(start, end === -1 ? undefined : end);
 }
 
 const workflowFiles = readdirSync(workflowDir).filter(file => file.endsWith(".yml")).sort();
@@ -147,6 +230,95 @@ assert(
   !coreCi.includes("contributors-please-action"),
   "contributors-please core CI should not depend on contributors-please-action",
 );
+
+for (const id of Array.from({ length: 16 }, (_, index) =>
+  String(index + 1).padStart(3, "0"),
+)) {
+  assert(itemChecked("CP-LIB", id), `contributors-please_TEST.md CP-LIB-${id} is not checked`);
+  assert(
+    itemChecked("CP-LIB", `${id}-DC`),
+    `contributors-please_TEST.md CP-LIB-${id}-DC is not checked`,
+  );
+}
+
+for (const id of Array.from({ length: 25 }, (_, index) =>
+  String(index + 1).padStart(3, "0"),
+)) {
+  assert(itemChecked("CP-COV", id), `contributors-please_TEST.md CP-COV-${id} is not checked`);
+}
+
+for (const id of Array.from({ length: 30 }, (_, index) =>
+  String(index + 1).padStart(3, "0"),
+)) {
+  assert(itemChecked("CP-INP", id), `contributors-please_TEST.md CP-INP-${id} is not checked`);
+}
+
+for (const id of Array.from({ length: 8 }, (_, index) =>
+  String(index + 1).padStart(3, "0"),
+)) {
+  assert(itemChecked("CP-PUB", id), `contributors-please_TEST.md CP-PUB-${id} is not checked`);
+}
+
+const plannedFeatureText = sectionBetween(
+  testPlan,
+  "## Group 1 - `contributors-please` Repo Test Series",
+  "## FR Coverage Double-Check",
+);
+const prdFrs = uniq(prd.match(/FR-\d+\.\d+/g) ?? []).sort();
+const plannedFrs = new Set(plannedFeatureText.match(/FR-\d+\.\d+/g) ?? []);
+for (const fr of prdFrs) {
+  assert(plannedFrs.has(fr), `${fr} appears in PRD but not in a CP-LIB/CP-GHA test item`);
+}
+
+const enhancementEvidence = sectionBetween(
+  testPlan,
+  "## Enhancement Coverage Evidence",
+  "## Harness Conventions",
+);
+const prdEnhancements = uniq([...prd.matchAll(/\| (E\d+) \|/g)].map(match => match[1])).sort();
+for (const enhancement of prdEnhancements) {
+  const row = enhancementEvidence
+    .split("\n")
+    .find(line => line.startsWith(`| \`${enhancement}\` |`));
+  assert(Boolean(row), `${enhancement} is missing from Enhancement Coverage Evidence`);
+  assert(
+    Boolean(row?.includes("CP-LIB-") && row.includes("CP-GHA-")),
+    `${enhancement} must name both CP-LIB and CP-GHA coverage`,
+  );
+}
+
+const inputsBlock = actionYml.match(/^inputs:\n([\s\S]*?)^outputs:/m)?.[1] ?? "";
+const actionInputs = [...inputsBlock.matchAll(/^  ([a-z0-9-]+):/gm)].map(
+  match => match[1],
+);
+assert(actionInputs.length > 0, "contributors-please-action/action.yml inputs were not parsed");
+const inputAudit = sectionBetween(
+  testPlan,
+  "## Action Input Coverage Audit",
+  "## Publication Double-Check",
+);
+for (const input of actionInputs) {
+  assert(inputAudit.includes(`\`${input}\``), `action input ${input} is missing from CP-INP audit`);
+}
+
+for (const [file, ids] of Object.entries(expectedWorkflows)) {
+  for (const id of ids) {
+    const cpId = `CP-GHA-${id}`;
+    assert(dashboard.includes(`| \`${cpId}\` |`), `DASHBOARD.md missing ${cpId}`);
+    assert(
+      dashboard.includes(`/actions/runs/${verifiedRuns[file]}`),
+      `DASHBOARD.md missing run link for ${cpId}`,
+    );
+    assert(
+      dashboard.includes(`/actions/artifacts/${artifactIds[id]}/zip`),
+      `DASHBOARD.md missing artifact archive link for ${cpId}`,
+    );
+    assert(
+      dashboard.includes(`test-output/${cpId}/`),
+      `DASHBOARD.md missing generated output path for ${cpId}`,
+    );
+  }
+}
 
 if (errors.length) {
   for (const error of errors) {
