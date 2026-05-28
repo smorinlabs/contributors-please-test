@@ -73,7 +73,6 @@ jobs:
         run: |
           env \
             GITHUB_ACTIONS=false \
-            GITHUB_STEP_SUMMARY=test-output/CP-GHA-006/action-summary.md \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_REF_NAME="$GITHUB_REF_NAME" \
             GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
@@ -149,7 +148,6 @@ jobs:
         run: |
           env \
             GITHUB_ACTIONS=false \
-            GITHUB_STEP_SUMMARY=test-output/CP-GHA-006/action-summary.md \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_REF_NAME="$GITHUB_REF_NAME" \
             GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
@@ -502,6 +500,7 @@ jobs:
         run: |
           env \
             GITHUB_ACTIONS=false \
+            GITHUB_STEP_SUMMARY=test-output/CP-GHA-006/action-summary.md \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_REF_NAME="$GITHUB_REF_NAME" \
             GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
@@ -517,6 +516,7 @@ jobs:
         run: |
           env \
             GITHUB_ACTIONS=false \
+            GITHUB_STEP_SUMMARY=test-output/CP-GHA-006/action-summary.md \
             GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
             GITHUB_REF_NAME="$GITHUB_REF_NAME" \
             GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
