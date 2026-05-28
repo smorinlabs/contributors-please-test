@@ -163,6 +163,7 @@ jobs:
           out_dir="$GITHUB_WORKSPACE/test-output/CP-GHA-040"
           repo="$out_dir/repo"
           origin="$out_dir/origin.git"
+          api_url="http://127.0.0.1:18040"
           rm -rf "$out_dir"
           mkdir -p "$repo"
           git init "$repo"
@@ -210,14 +211,14 @@ jobs:
             fi
             sleep 0.25
           done
-          curl -fsS http://127.0.0.1:18040/__ready >/dev/null
-          echo "CP_GHA_040_API=http://127.0.0.1:18040" >> "$GITHUB_ENV"
+          curl -fsS "$api_url/__ready" >/dev/null
+          echo "CP_GHA_040_API=$api_url" >> "$GITHUB_ENV"
           cd "$repo"
           npm_config_yes=true npx contributors-please@latest init --non-interactive \
             --owner smorinlabs \
             --repo contributors-please-test \
             --token fake-cli-token \
-            --github-server-url "$CP_GHA_040_API" \
+            --github-server-url "$api_url" \
             --config-file .contributors.yml
           cp contributors.md "$out_dir/cli-bootstrap-contributors.md"
           cp .contributors.jsonl "$out_dir/cli-bootstrap-state.jsonl"

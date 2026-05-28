@@ -538,7 +538,7 @@ jobs:
       - name: Prepare permission API and local pull-request origin
         run: |
           set -euo pipefail
-          out_dir="test-output/CP-GHA-043"
+          out_dir="$GITHUB_WORKSPACE/test-output/CP-GHA-043"
           repo="$out_dir/repo"
           origin="$out_dir/origin.git"
           rm -rf "$out_dir"
