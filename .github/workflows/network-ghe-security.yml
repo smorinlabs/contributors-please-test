@@ -162,12 +162,52 @@ jobs:
           const outDir = "test-output/CP-GHA-032";
           const server = http.createServer((req, res) => {
             const url = new URL(req.url ?? "/", "http://proxy.local");
-            fs.appendFileSync(`${outDir}/proxy.log`, `${req.method} ${url.href}\n`);
-            if (url.pathname === "/user") return json(res, { login: "proxy-bot", id: 32032 });
-            if (url.pathname.endsWith("/contributors")) return json(res, []);
-            json(res, { error: "not found", path: url.pathname }, 404);
+            if (url.pathname === "/__ready") return json(res, { ready: true });
+            log(`${req.method} ${url.href}`);
+            const { status, value } = responseFor(url.pathname);
+            json(res, value, status);
+          });
+          server.on("connect", (req, socket, head) => {
+            const authority = req.url ?? "";
+            log(`CONNECT ${authority}`);
+            if (!authority.startsWith("api.cp-gha-032.test")) {
+              socket.write("HTTP/1.1 502 Bad Gateway\r\nconnection: close\r\n\r\n");
+              socket.end();
+              return;
+            }
+            socket.write("HTTP/1.1 200 Connection Established\r\nproxy-agent: cp-gha-032\r\n\r\n");
+            let buffered = head && head.length ? Buffer.from(head) : Buffer.alloc(0);
+            socket.on("data", chunk => {
+              buffered = Buffer.concat([buffered, chunk]);
+              const text = buffered.toString("utf8");
+              const headerEnd = text.indexOf("\r\n\r\n");
+              if (headerEnd === -1) return;
+              const [requestLine] = text.slice(0, headerEnd).split("\r\n");
+              const [method, target] = requestLine.split(" ");
+              const url = new URL(target, `http://${authority}`);
+              log(`${method} ${url.href}`);
+              const { status, value } = responseFor(url.pathname);
+              const body = Buffer.from(JSON.stringify(value));
+              socket.write([
+                `HTTP/1.1 ${status} ${status === 200 ? "OK" : "Not Found"}`,
+                "content-type: application/json",
+                `content-length: ${body.length}`,
+                "connection: close",
+                "",
+                ""
+              ].join("\r\n"));
+              socket.end(body);
+            });
           });
           server.listen(18032, "127.0.0.1");
+          function responseFor(path) {
+            if (path === "/user") return { status: 200, value: { login: "proxy-bot", id: 32032 } };
+            if (path.endsWith("/contributors")) return { status: 200, value: [] };
+            return { status: 404, value: { error: "not found", path } };
+          }
+          function log(line) {
+            fs.appendFileSync(`${outDir}/proxy.log`, `${line}\n`);
+          }
           function json(res, value, status = 200) {
             res.writeHead(status, { "content-type": "application/json" });
             res.end(JSON.stringify(value));
@@ -176,16 +216,17 @@ jobs:
           nohup node "$out_dir/proxy.mjs" > "$out_dir/proxy-server.log" 2>&1 &
           echo "$!" > "$out_dir/proxy.pid"
           for _ in {1..20}; do
-            if curl -fsS http://127.0.0.1:18032/user >/dev/null; then
+            if curl -fsS http://127.0.0.1:18032/__ready >/dev/null; then
               break
             fi
             sleep 0.25
           done
-          curl -fsS http://127.0.0.1:18032/user >/dev/null
+          curl -fsS http://127.0.0.1:18032/__ready >/dev/null
           echo "CP_GHA_032_API=http://api.cp-gha-032.test" >> "$GITHUB_ENV"
           echo "CP_GHA_032_PROXY=http://127.0.0.1:18032" >> "$GITHUB_ENV"
       - name: Run contributors-please through proxy
         id: proxy
+        timeout-minutes: 2
         uses: ./.github/actions/contributors-please-action
         env:
           HTTPS_PROXY: ${{ env.CP_GHA_032_PROXY }}

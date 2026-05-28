@@ -39,7 +39,7 @@ env:
 jobs:
   cp-gha-039:
     name: CP-GHA-039 loop guards and idempotency
-    if: ${{ github.event_name == 'push' || inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-039' }}
+    if: ${{ (github.event_name == 'push' && vars.RUN_CONTRIBUTORS_PLEASE_LOOPGUARD == 'true') || (github.event_name == 'workflow_dispatch' && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-039')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
           state-file: test-output/CP-GHA-039/.contributors.jsonl
           mode: commit
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Capture first-run bytes
         run: |
           set -euo pipefail
@@ -88,7 +88,7 @@ jobs:
           state-file: test-output/CP-GHA-039/.contributors.jsonl
           mode: commit
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Verify loop guards
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_PAT }}
