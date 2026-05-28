@@ -33,6 +33,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.endsWith("/contributors")) {
     return json(res, readContributorsFixture());
   }
+  const issueLabels = url.pathname.match(/\/issues\/(\d+)\/labels$/);
+  if (issueLabels && req.method === "POST") {
+    const body = JSON.parse(await readBody(req));
+    const labels = readJson("issue-labels.json", []);
+    labels.push({ issue: Number(issueLabels[1]), labels: body.labels ?? [] });
+    writeJson("issue-labels.json", labels);
+    return json(res, body, 201);
+  }
   if (url.pathname.includes("/labels/")) {
     const label = findLabel(decodeURIComponent(url.pathname.split("/labels/")[1] ?? ""));
     return label ? json(res, label) : json(res, { message: "not found" }, 404);
@@ -76,15 +84,6 @@ const server = http.createServer(async (req, res) => {
     writeJson("pull-request.json", pull);
     return json(res, pull);
   }
-  const issueLabels = url.pathname.match(/\/issues\/(\d+)\/labels$/);
-  if (issueLabels && req.method === "POST") {
-    const body = JSON.parse(await readBody(req));
-    const labels = readJson("issue-labels.json", []);
-    labels.push({ issue: Number(issueLabels[1]), labels: body.labels ?? [] });
-    writeJson("issue-labels.json", labels);
-    return json(res, body, 201);
-  }
-
   json(res, { error: "not found", path: url.pathname }, 404);
 });
 
