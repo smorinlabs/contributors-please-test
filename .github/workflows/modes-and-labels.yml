@@ -469,7 +469,7 @@ jobs:
           out_dir="test-output/CP-GHA-025"
           rm -rf "$out_dir"
           mkdir -p "$out_dir"
-          for mode in commit pull-request check; do
+          for mode in control commit pull-request check; do
             cat > "$out_dir/${mode}.jsonl" <<'JSONL'
           {"login":"dry-run-tester","name":"Dry Run Tester","profile":"https://example.com/dry-run-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
@@ -501,7 +501,25 @@ jobs:
           done
           curl -fsS http://127.0.0.1:18025/user >/dev/null
           echo "CP_GHA_025_API=http://127.0.0.1:18025" >> "$GITHUB_ENV"
-          git rev-parse HEAD > "$out_dir/head-before.txt"
+      - name: Non-dry-run control output
+        run: |
+          set -euo pipefail
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_025_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-025/control-contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-025/control.jsonl' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_ENTRY-TEMPLATE={{login}}' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
+            node .github/actions/contributors-please-action/dist/index.js
+          grep -F "dry-run-tester" test-output/CP-GHA-025/control-contributors.md
+          git rev-parse HEAD > test-output/CP-GHA-025/head-before.txt
       - name: Dry-run commit mode
         id: commit_mode
         uses: ./.github/actions/contributors-please-action
