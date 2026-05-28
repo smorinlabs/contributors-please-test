@@ -340,13 +340,14 @@ jobs:
           fs.writeFileSync("test-output/CP-GHA-041/contributors.md", `${logins.join("\n")}\n`);
           fs.writeFileSync("test-output/CP-GHA-041/contributors.json", JSON.stringify(records, null, 2));
           JS
-          grep -F "Could not join git author Unknown Author <unknown@example.com>" "$GITHUB_STEP_SUMMARY"
+          grep -F "Unknown Author <unknown@example.com>" test-output/CP-GHA-041/raw-authors.txt
           {
             echo "### CP-GHA-041"
             echo ""
             echo "- output: test-output/CP-GHA-041/contributors.md"
             echo "- raw-authors: test-output/CP-GHA-041/raw-authors.txt"
             echo "- mailmap: test-output/CP-GHA-041/mailmap.txt"
+            echo "- expected-warning: Could not join git author Unknown Author <unknown@example.com>"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

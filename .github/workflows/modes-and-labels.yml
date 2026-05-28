@@ -381,7 +381,7 @@ jobs:
           state-file: test-output/CP-GHA-024/.contributors.jsonl
           mode: check
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Prepare no-diff output
         run: printf 'check-mode-tester\n' > test-output/CP-GHA-024/control-contributors.md
       - name: No-diff check-mode run
@@ -397,7 +397,7 @@ jobs:
           state-file: test-output/CP-GHA-024/.contributors.jsonl
           mode: check
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Verify check-mode behavior
         run: |
           set -euo pipefail
@@ -481,7 +481,7 @@ jobs:
           mode: commit
           dry-run: "true"
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Dry-run pull-request mode
         id: pr_mode
         uses: ./.github/actions/contributors-please-action
@@ -493,7 +493,7 @@ jobs:
           mode: pull-request
           dry-run: "true"
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Dry-run check mode
         id: check_mode
         uses: ./.github/actions/contributors-please-action
@@ -505,7 +505,7 @@ jobs:
           mode: check
           dry-run: "true"
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: Verify dry-run behavior
         run: |
           set -euo pipefail
