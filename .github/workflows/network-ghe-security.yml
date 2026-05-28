@@ -484,7 +484,7 @@ jobs:
           state-file: test-output/CP-GHA-042/.contributors.jsonl
           mode: check
           entry-template: "{{login}}"
-          min-contributions: "999999"
+          min-contributions: "1"
       - name: "EXPECTED FAILURE: exhausted rate limit"
         id: expected_failure
         continue-on-error: true
