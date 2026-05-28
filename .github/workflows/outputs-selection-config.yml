@@ -98,6 +98,14 @@ jobs:
           test "${{ steps.contributors.outputs.pr-number }}" = ""
           test "${{ steps.contributors.outputs.pr-url }}" = ""
           test -n "${{ steps.contributors.outputs.commit-sha }}"
+          printf '%s\n' '${{ steps.contributors.outputs.contributors-json }}' > test-output/CP-GHA-027/contributors-json.json
+          node <<'NODE'
+          const fs = require("node:fs");
+          const contributors = JSON.parse(fs.readFileSync("test-output/CP-GHA-027/contributors-json.json", "utf8"));
+          if (contributors.length !== 1 || contributors[0].login !== "outputs-tester") {
+            throw new Error(`unexpected contributors-json output: ${JSON.stringify(contributors)}`);
+          }
+          NODE
           grep -F "outputs-tester" test-output/CP-GHA-027/contributors.md
           cat > test-output/CP-GHA-027/consumed-outputs.txt <<'TXT'
           added-logins
@@ -128,7 +136,8 @@ jobs:
             echo "contributors-count=${{ steps.contributors.outputs.contributors-count }}"
             echo "token-source=${{ steps.contributors.outputs.token-source }}"
             echo "committer-login=${{ steps.contributors.outputs.committer-login }}"
-            echo "contributors-json=${{ steps.contributors.outputs.contributors-json }}"
+            printf 'contributors-json='
+            cat test-output/CP-GHA-027/contributors-json.json
             echo "pr-opened=${{ steps.contributors.outputs.pr-opened }}"
             echo "pr-number=${{ steps.contributors.outputs.pr-number }}"
             echo "pr-url=${{ steps.contributors.outputs.pr-url }}"
