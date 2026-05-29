@@ -68,11 +68,11 @@ jobs:
           JSONL
           nohup node scripts/fake-github-api.mjs 18014 "$out_dir" render-bot-014 14014 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18014/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18014/__ready >/dev/null
           echo "CP_GHA_014_API=http://127.0.0.1:18014" >> "$GITHUB_ENV"
@@ -181,11 +181,11 @@ jobs:
           sha256sum "$out_dir/default-template.md" "$out_dir/template.md" > "$out_dir/template.before.sha256"
           nohup node scripts/fake-github-api.mjs 18015 "$out_dir" render-bot-015 14015 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18015/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18015/__ready >/dev/null
           echo "CP_GHA_015_API=http://127.0.0.1:18015" >> "$GITHUB_ENV"
@@ -284,11 +284,11 @@ jobs:
           JSONL
           nohup node scripts/fake-github-api.mjs 18016 "$out_dir" render-bot-016 14016 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18016/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18016/__ready >/dev/null
           echo "CP_GHA_016_API=http://127.0.0.1:18016" >> "$GITHUB_ENV"
@@ -429,11 +429,11 @@ jobs:
           JS
           nohup node scripts/fake-github-api.mjs 18017 "$out_dir" render-bot-017 14017 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18017/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18017/__ready >/dev/null
           echo "CP_GHA_017_API=http://127.0.0.1:18017" >> "$GITHUB_ENV"
@@ -577,11 +577,11 @@ jobs:
           cp "$out_dir/inverted-marker.md" "$out_dir/inverted-marker.before.md"
           nohup node scripts/fake-github-api.mjs 18018 "$out_dir" render-bot-018 14018 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18018/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18018/__ready >/dev/null
           echo "CP_GHA_018_API=http://127.0.0.1:18018" >> "$GITHUB_ENV"
@@ -788,11 +788,11 @@ jobs:
           JS
           nohup node scripts/fake-github-api.mjs 18019 "$out_dir" render-bot-019 14019 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18019/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18019/__ready >/dev/null
           echo "CP_GHA_019_API=http://127.0.0.1:18019" >> "$GITHUB_ENV"

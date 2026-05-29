@@ -90,11 +90,11 @@ jobs:
           JSON
           nohup node scripts/fake-github-api.mjs 18033 "$out_dir" cli-bootstrap-token 26033 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18033/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18033/__ready >/dev/null
           echo "CP_GHA_033_SERVER=http://127.0.0.1:18033" >> "$GITHUB_ENV"
@@ -167,11 +167,11 @@ jobs:
           mkdir -p "$out_dir"
           nohup node scripts/fake-github-api.mjs 18034 "$out_dir" missing-state-token 26034 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18034/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18034/__ready >/dev/null
           echo "CP_GHA_034_API=http://127.0.0.1:18034" >> "$GITHUB_ENV"
@@ -253,11 +253,11 @@ jobs:
           JSON
           nohup node scripts/fake-github-api.mjs 18035 "$out_dir" bootstrap-pr-token 26035 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18035/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18035/__ready >/dev/null
           echo "CP_GHA_035_API=http://127.0.0.1:18035" >> "$GITHUB_ENV"
@@ -344,11 +344,11 @@ jobs:
           YAML
           nohup node scripts/fake-github-api.mjs 18036 test-output/CP-GHA-036 schema-token 26036 > test-output/CP-GHA-036/server.log 2>&1 &
           echo "$!" > test-output/CP-GHA-036/server.pid
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18036/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18036/__ready >/dev/null
           echo "CP_GHA_036_API=http://127.0.0.1:18036" >> "$GITHUB_ENV"
@@ -560,11 +560,11 @@ jobs:
           JSONL
           nohup node scripts/fake-github-api.mjs 18038 test-output/CP-GHA-038 bundle-token 26038 > test-output/CP-GHA-038/server.log 2>&1 &
           echo "$!" > test-output/CP-GHA-038/server.pid
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18038/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18038/__ready >/dev/null
           echo "CP_GHA_038_API=http://127.0.0.1:18038" >> "$GITHUB_ENV"
@@ -638,11 +638,11 @@ jobs:
           YAML
           nohup node scripts/fake-github-api.mjs 18044 "$out_dir" cli-parity-token 26044 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18044/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18044/__ready >/dev/null
           echo "CP_GHA_044_API=http://127.0.0.1:18044" >> "$GITHUB_ENV"
@@ -720,11 +720,11 @@ jobs:
           done
           nohup node scripts/fake-github-api.mjs 18047 "$out_dir" commit-message-token 26047 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18047/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18047/__ready >/dev/null
           echo "CP_GHA_047_API=http://127.0.0.1:18047" >> "$GITHUB_ENV"

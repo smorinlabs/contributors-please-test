@@ -66,11 +66,11 @@ jobs:
           JSONL
           nohup node scripts/fake-github-api.mjs 18001 "$out_dir" contributors-please-test-app 26001 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18001/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18001/__ready >/dev/null
           echo "CP_GHA_001_API=http://127.0.0.1:18001" >> "$GITHUB_ENV"
@@ -141,11 +141,11 @@ jobs:
           JSONL
           nohup node scripts/fake-github-api.mjs 18002 "$out_dir" pat-token-user 26002 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18002/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18002/__ready >/dev/null
           echo "CP_GHA_002_API=http://127.0.0.1:18002" >> "$GITHUB_ENV"
@@ -212,11 +212,11 @@ jobs:
           cp "$out_dir/control.jsonl" "$out_dir/.contributors.jsonl"
           nohup node scripts/fake-github-api.mjs 18003 "$out_dir" missing-credentials-control 26003 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18003/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18003/__ready >/dev/null
           echo "CP_GHA_003_API=http://127.0.0.1:18003" >> "$GITHUB_ENV"
@@ -314,11 +314,11 @@ jobs:
           JSON
           nohup node scripts/fake-github-api.mjs 18004 "$out_dir" discovery-pat-user 26004 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18004/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18004/__ready >/dev/null
           echo "CP_GHA_004_API=http://127.0.0.1:18004" >> "$GITHUB_ENV"
@@ -401,11 +401,11 @@ jobs:
           test "$(git -C "$shallow_repo" rev-parse --is-shallow-repository)" = "true"
           nohup node scripts/fake-github-api.mjs 18005 "$out_dir" shallow-pat-user 26005 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18005/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18005/__ready >/dev/null
           echo "CP_GHA_005_API=http://127.0.0.1:18005" >> "$GITHUB_ENV"
@@ -493,11 +493,11 @@ jobs:
           cp "$out_dir/filtered.jsonl" "$out_dir/unignore.jsonl"
           nohup node scripts/fake-github-api.mjs 18006 "$out_dir" self-exclusion-bot 26006 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18006/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18006/__ready >/dev/null
           echo "CP_GHA_006_API=http://127.0.0.1:18006" >> "$GITHUB_ENV"

@@ -71,11 +71,11 @@ jobs:
           git rev-parse HEAD > "$out_dir/head-before.txt"
           nohup node scripts/fake-github-api.mjs 18039 "$out_dir" loopguard-bot 39039 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18039/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS http://127.0.0.1:18039/__ready >/dev/null
           echo "CP_GHA_039_API=http://127.0.0.1:18039" >> "$GITHUB_ENV"
@@ -213,11 +213,11 @@ jobs:
           YAML
           nohup node scripts/fake-github-api.mjs 18040 "$out_dir" acceptance-bot 40040 > "$out_dir/server.log" 2>&1 &
           echo "$!" > "$out_dir/server.pid"
-          for _ in {1..20}; do
+          for _ in {1..60}; do
             if curl -fsS http://127.0.0.1:18040/__ready >/dev/null; then
               break
             fi
-            sleep 0.25
+            sleep 0.5
           done
           curl -fsS "$api_url/__ready" >/dev/null
           echo "CP_GHA_040_API=$api_url" >> "$GITHUB_ENV"
