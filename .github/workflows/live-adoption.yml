@@ -69,13 +69,16 @@ jobs:
           {
             echo "login=$login"
             echo "email=${user_id}+${login}@users.noreply.github.com"
+            echo "fixture-name=contributors-please live fixture"
+            echo "fixture-email=${login}@users.noreply.github.com"
           } >> "$GITHUB_OUTPUT"
 
       - name: Prepare clean live adoption baseline
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
           E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
-          E2E_EMAIL: ${{ steps.target-actor.outputs.email }}
+          FIXTURE_NAME: ${{ steps.target-actor.outputs.fixture-name }}
+          FIXTURE_EMAIL: ${{ steps.target-actor.outputs.fixture-email }}
         run: |
           set -euo pipefail
           mkdir -p test-output/live-adoption live-fixtures
@@ -117,10 +120,10 @@ jobs:
           YAML
 
           git add .contributors.yml "$seed_path"
-          GIT_AUTHOR_NAME="$E2E_LOGIN" \
-          GIT_AUTHOR_EMAIL="$E2E_EMAIL" \
-          GIT_COMMITTER_NAME="$E2E_LOGIN" \
-          GIT_COMMITTER_EMAIL="$E2E_EMAIL" \
+          GIT_AUTHOR_NAME="$FIXTURE_NAME" \
+          GIT_AUTHOR_EMAIL="$FIXTURE_EMAIL" \
+          GIT_COMMITTER_NAME="$FIXTURE_NAME" \
+          GIT_COMMITTER_EMAIL="$FIXTURE_EMAIL" \
             git commit -m "test: live adoption seed ${GITHUB_RUN_ID}"
           git push origin HEAD:main
 
@@ -194,8 +197,8 @@ jobs:
 
       - name: Add declared contributor state
         env:
-          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
-          E2E_EMAIL: ${{ steps.target-actor.outputs.email }}
+          FIXTURE_NAME: ${{ steps.target-actor.outputs.fixture-name }}
+          FIXTURE_EMAIL: ${{ steps.target-actor.outputs.fixture-email }}
         run: |
           set -euo pipefail
           today="$(date -u +%F)"
@@ -204,10 +207,10 @@ jobs:
           {"login":"${declared_login}","name":"Live Declared ${GITHUB_RUN_ID}","profile":"https://example.com/${declared_login}","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Live Declared","emoji":"docs","commits":0,"first_seen":"${today}","last_updated":"${today}"}
           JSONL
           git add .contributors.jsonl
-          GIT_AUTHOR_NAME="$E2E_LOGIN" \
-          GIT_AUTHOR_EMAIL="$E2E_EMAIL" \
-          GIT_COMMITTER_NAME="$E2E_LOGIN" \
-          GIT_COMMITTER_EMAIL="$E2E_EMAIL" \
+          GIT_AUTHOR_NAME="$FIXTURE_NAME" \
+          GIT_AUTHOR_EMAIL="$FIXTURE_EMAIL" \
+          GIT_COMMITTER_NAME="$FIXTURE_NAME" \
+          GIT_COMMITTER_EMAIL="$FIXTURE_EMAIL" \
             git commit -m "test: add declared contributor ${GITHUB_RUN_ID}"
           git push origin HEAD:main
 
@@ -290,8 +293,8 @@ jobs:
       - name: Prepare pull request mode fixture
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
-          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
-          E2E_EMAIL: ${{ steps.target-actor.outputs.email }}
+          FIXTURE_NAME: ${{ steps.target-actor.outputs.fixture-name }}
+          FIXTURE_EMAIL: ${{ steps.target-actor.outputs.fixture-email }}
         run: |
           set -euo pipefail
           git fetch origin main
@@ -306,10 +309,10 @@ jobs:
             echo "run: ${GITHUB_RUN_ID}"
           } > "$pr_path"
           git add "$pr_path"
-          GIT_AUTHOR_NAME="$E2E_LOGIN" \
-          GIT_AUTHOR_EMAIL="$E2E_EMAIL" \
-          GIT_COMMITTER_NAME="$E2E_LOGIN" \
-          GIT_COMMITTER_EMAIL="$E2E_EMAIL" \
+          GIT_AUTHOR_NAME="$FIXTURE_NAME" \
+          GIT_AUTHOR_EMAIL="$FIXTURE_EMAIL" \
+          GIT_COMMITTER_NAME="$FIXTURE_NAME" \
+          GIT_COMMITTER_EMAIL="$FIXTURE_EMAIL" \
             git commit -m "test: live adoption pr fixture ${GITHUB_RUN_ID}"
           git push origin HEAD:main
 
