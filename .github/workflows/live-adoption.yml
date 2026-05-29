@@ -149,6 +149,7 @@ jobs:
 
       - name: Run commit mode bootstrap
         id: commit-bootstrap
+        continue-on-error: true
         uses: ./.github/actions/contributors-please-action
         env:
           GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
@@ -167,6 +168,17 @@ jobs:
             test: live adoption commit mode
 
             [skip ci]
+
+      - name: Diagnose commit mode bootstrap failure
+        if: ${{ steps.commit-bootstrap.outcome == 'failure' }}
+        run: |
+          set -euo pipefail
+          git status --short
+          git log -1 --format='%H %an <%ae> %s'
+          git remote get-url origin | sed -E 's#x-access-token:[^@]+@#x-access-token:***@#'
+          git config --local --get-regexp '^http\..*extraheader' || true
+          git push origin HEAD:main
+          exit 1
 
       - name: Verify commit mode persisted files
         env:
