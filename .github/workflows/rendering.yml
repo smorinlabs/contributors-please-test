@@ -25,6 +25,7 @@ on:
           - CP-GHA-016
           - CP-GHA-017
           - CP-GHA-018
+          - CP-GHA-019
 
 permissions:
   contents: write
@@ -726,4 +727,139 @@ jobs:
         with:
           name: cp-gha-018
           path: test-output/CP-GHA-018
+          include-hidden-files: true
+
+  cp-gha-019:
+    name: CP-GHA-019 config-file in-place composition
+    needs: cp-gha-018
+    if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-019') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'v1' }}
+          path: ${{ env.ACTION_PATH }}
+      - name: Prepare fixture
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          out_dir="test-output/CP-GHA-019"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          cat > "$out_dir/.contributors.jsonl" <<'JSONL'
+          {"login":"compose-one","name":"Compose One","profile":"https://example.com/compose-one","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":3,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          {"login":"compose-two","name":"Compose Two","profile":"https://example.com/compose-two","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          {"login":"compose-three","name":"Compose Three","profile":"https://example.com/compose-three","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":1,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
+          JSONL
+          # Rendering settings come ONLY from the config file; the matching action
+          # inputs (in-place, columns-per-row, entry-template) are deliberately
+          # left unset below so this exercises config-file composition — the path
+          # a real .contributors.yml uses.
+          cat > "$out_dir/.contributors.yml" <<'YAML'
+          in_place: true
+          columns_per_row: 1
+          entry_template: "- [{{name}}]({{profile}})"
+          YAML
+          cat > "$out_dir/contributors.md" <<'EOF'
+          # Contributors
+
+          Intro prose that must survive.
+
+          <!-- contributors-please:start -->
+          stale body
+          <!-- contributors-please:end -->
+
+          ## How to Contribute
+
+          Footer prose that must survive.
+          EOF
+          node <<'JS'
+          const fs = require("fs");
+          const path = "test-output/CP-GHA-019/contributors.md";
+          const text = fs.readFileSync(path, "utf8");
+          const start = "<!-- contributors-please:start -->";
+          const end = "<!-- contributors-please:end -->";
+          fs.writeFileSync(`${path}.prefix`, text.slice(0, text.indexOf(start) + start.length));
+          fs.writeFileSync(`${path}.suffix`, text.slice(text.indexOf(end)));
+          JS
+          nohup node scripts/fake-github-api.mjs 18019 "$out_dir" render-bot-019 14019 > "$out_dir/server.log" 2>&1 &
+          echo "$!" > "$out_dir/server.pid"
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:18019/__ready >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:18019/__ready >/dev/null
+          echo "CP_GHA_019_API=http://127.0.0.1:18019" >> "$GITHUB_ENV"
+      - name: Run config-driven in-place rendering
+        id: contributors
+        run: |
+          env \
+            GITHUB_ACTIONS=false \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            'INPUT_PAT=fake-token' \
+            "INPUT_GITHUB-API-URL=${CP_GHA_019_API}" \
+            'INPUT_OUTPUT-FILE=test-output/CP-GHA-019/contributors.md' \
+            'INPUT_STATE-FILE=test-output/CP-GHA-019/.contributors.jsonl' \
+            'INPUT_CONFIG-FILE=test-output/CP-GHA-019/.contributors.yml' \
+            'INPUT_MODE=commit' \
+            'INPUT_DRY-RUN=false' \
+            'INPUT_BOOTSTRAP=false' \
+            'INPUT_MIN-CONTRIBUTIONS=1' \
+            node .github/actions/contributors-please-action/dist/index.js
+      - name: Verify output
+        run: |
+          set -euo pipefail
+          file=test-output/CP-GHA-019/contributors.md
+          # Surrounding content survives — proves in-place edit, not whole-file replace.
+          grep -F "# Contributors" "$file"
+          grep -F "Intro prose that must survive." "$file"
+          grep -F "## How to Contribute" "$file"
+          grep -F "Footer prose that must survive." "$file"
+          grep -F "<!-- contributors-please:start -->" "$file"
+          grep -F "<!-- contributors-please:end -->" "$file"
+          # Entries rendered from the config-file entry_template.
+          grep -F -- "- [Compose One](https://example.com/compose-one)" "$file"
+          grep -F -- "- [Compose Two](https://example.com/compose-two)" "$file"
+          grep -F -- "- [Compose Three](https://example.com/compose-three)" "$file"
+          # columns_per_row: 1 from config → one entry per line (not mashed on one row).
+          entry_lines="$(grep -cE '^- \[Compose ' "$file")"
+          test "$entry_lines" = "3"
+          # Stale in-place body was replaced.
+          if grep -F "stale body" "$file"; then
+            echo "config-driven in-place body was not replaced" >&2
+            exit 1
+          fi
+          # Prefix/suffix around the markers are byte-identical.
+          node <<'JS'
+          const fs = require("fs");
+          const path = "test-output/CP-GHA-019/contributors.md";
+          const text = fs.readFileSync(path, "utf8");
+          const start = "<!-- contributors-please:start -->";
+          const end = "<!-- contributors-please:end -->";
+          if (fs.readFileSync(`${path}.prefix`, "utf8") !== text.slice(0, text.indexOf(start) + start.length)) {
+            throw new Error("prefix changed");
+          }
+          if (fs.readFileSync(`${path}.suffix`, "utf8") !== text.slice(text.indexOf(end))) {
+            throw new Error("suffix changed");
+          }
+          JS
+          {
+            echo "### CP-GHA-019"
+            echo ""
+            echo "- output: test-output/CP-GHA-019/contributors.md"
+            echo "- config-file: test-output/CP-GHA-019/.contributors.yml (in_place, columns_per_row, entry_template)"
+            echo "- in-place / columns-per-row / entry-template inputs: unset (sourced from config)"
+            echo "- changed: ${{ steps.contributors.outputs.changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cp-gha-019
+          path: test-output/CP-GHA-019
           include-hidden-files: true
