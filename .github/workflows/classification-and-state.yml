@@ -81,16 +81,7 @@ jobs:
           commit_fixture "src/cp-gha-007.ts" "export const cpGha007 = true;" "test: cp-gha-007 code fixture"
           commit_fixture "docs/cp-gha-007.md" "# CP-GHA-007" "test: cp-gha-007 docs fixture"
           commit_fixture "tests/cp-gha-007.test.ts" "test('cp-gha-007', () => expect(true).toBe(true));" "test: cp-gha-007 quality fixture"
-          nohup node scripts/fake-github-api.mjs 18007 "$out_dir" render-bot-007 14007 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18007/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18007/__ready >/dev/null
-          echo "CP_GHA_007_API=http://127.0.0.1:18007" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18007 "$out_dir" render-bot-007 14007 CP_GHA_007_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -193,16 +184,7 @@ jobs:
             git -c user.name="catchall-tester" \
               -c user.email="15009+catchall-tester@users.noreply.github.com" \
               commit -m "test: cp-gha-008 catchall fixture"
-          nohup node scripts/fake-github-api.mjs 18008 "$out_dir" render-bot-008 14008 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18008/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18008/__ready >/dev/null
-          echo "CP_GHA_008_API=http://127.0.0.1:18008" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18008 "$out_dir" render-bot-008 14008 CP_GHA_008_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -324,16 +306,7 @@ jobs:
           commit_fixture "combine-tester" 15011 "2026-05-12" "docs/cp-gha-009-combine.md" "combine docs" "test: cp-gha-009 combine docs"
           commit_fixture "combine-tester" 15011 "2026-05-13" "src/cp-gha-009-combine.ts" "combine code" "test: cp-gha-009 combine code"
           commit_fixture "single-tester" 15012 "2026-05-14" "docs/cp-gha-009-single.md" "single docs" "test: cp-gha-009 single docs"
-          nohup node scripts/fake-github-api.mjs 18009 "$out_dir" render-bot-009 14009 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18009/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18009/__ready >/dev/null
-          echo "CP_GHA_009_API=http://127.0.0.1:18009" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18009 "$out_dir" render-bot-009 14009 CP_GHA_009_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -414,16 +387,7 @@ jobs:
           cat > "$out_dir/invalid.yml" <<'YAML'
           classifier: reviews
           YAML
-          nohup node scripts/fake-github-api.mjs 18010 "$out_dir" render-bot-010 14010 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18010/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18010/__ready >/dev/null
-          echo "CP_GHA_010_API=http://127.0.0.1:18010" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18010 "$out_dir" render-bot-010 14010 CP_GHA_010_API /__ready
       - name: Run valid control
         id: control
         run: |
@@ -503,16 +467,7 @@ jobs:
           {"login":"declared-designer","name":"Declared Designer","profile":"https://example.com/declared-designer","avatar":"","source":"declared","pinned":true,"categories":["design"],"title":"Design Lead","emoji":"design","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           cp "$out_dir/.contributors.jsonl" "$out_dir/state.before.jsonl"
-          nohup node scripts/fake-github-api.mjs 18011 "$out_dir" render-bot-011 14011 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18011/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18011/__ready >/dev/null
-          echo "CP_GHA_011_API=http://127.0.0.1:18011" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18011 "$out_dir" render-bot-011 14011 CP_GHA_011_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -596,16 +551,7 @@ jobs:
             git -c user.name="declared-later" \
               -c user.email="15012+declared-later@users.noreply.github.com" \
               commit -m "test: cp-gha-012 declared contributor appears"
-          nohup node scripts/fake-github-api.mjs 18012 "$out_dir" render-bot-012 14012 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18012/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18012/__ready >/dev/null
-          echo "CP_GHA_012_API=http://127.0.0.1:18012" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18012 "$out_dir" render-bot-012 14012 CP_GHA_012_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -686,16 +632,7 @@ jobs:
             git -c user.name="stale-pinned" \
               -c user.email="15013+stale-pinned@users.noreply.github.com" \
               commit -m "test: cp-gha-013 stale pinned fixture"
-          nohup node scripts/fake-github-api.mjs 18013 "$out_dir" render-bot-013 14013 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18013/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18013/__ready >/dev/null
-          echo "CP_GHA_013_API=http://127.0.0.1:18013" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18013 "$out_dir" render-bot-013 14013 CP_GHA_013_API /__ready
       - name: Run with stale pin warning enabled
         id: warn_enabled
         run: |
@@ -785,16 +722,7 @@ jobs:
             git -c user.name="jsonl-new" \
               -c user.email="15019+jsonl-new@users.noreply.github.com" \
               commit -m "test: cp-gha-019 jsonl merge fixture"
-          nohup node scripts/fake-github-api.mjs 18019 "$out_dir" render-bot-019 14019 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18019/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18019/__ready >/dev/null
-          echo "CP_GHA_019_API=http://127.0.0.1:18019" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18019 "$out_dir" render-bot-019 14019 CP_GHA_019_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -865,16 +793,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"declared-first-seen","name":"Declared First Seen","profile":"https://example.com/declared-first-seen","avatar":"","source":"declared","pinned":true,"categories":[],"title":"Declared Contributor","commits":0,"last_updated":"2026-05-01"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18020 "$out_dir" render-bot-020 14020 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18020/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18020/__ready >/dev/null
-          echo "CP_GHA_020_API=http://127.0.0.1:18020" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18020 "$out_dir" render-bot-020 14020 CP_GHA_020_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |

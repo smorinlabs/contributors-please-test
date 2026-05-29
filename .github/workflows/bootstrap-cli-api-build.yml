@@ -88,16 +88,7 @@ jobs:
           cat > "$out_dir/api-contributors.json" <<'JSON'
           [{"login":"cli-bootstrap","avatar_url":"","html_url":"https://github.com/cli-bootstrap","contributions":1}]
           JSON
-          nohup node scripts/fake-github-api.mjs 18033 "$out_dir" cli-bootstrap-token 26033 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18033/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18033/__ready >/dev/null
-          echo "CP_GHA_033_SERVER=http://127.0.0.1:18033" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18033 "$out_dir" cli-bootstrap-token 26033 CP_GHA_033_SERVER /__ready
       - name: Bootstrap with published CLI
         run: |
           set -euo pipefail
@@ -165,16 +156,7 @@ jobs:
           out_dir="test-output/CP-GHA-034"
           rm -rf "$out_dir"
           mkdir -p "$out_dir"
-          nohup node scripts/fake-github-api.mjs 18034 "$out_dir" missing-state-token 26034 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18034/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18034/__ready >/dev/null
-          echo "CP_GHA_034_API=http://127.0.0.1:18034" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18034 "$out_dir" missing-state-token 26034 CP_GHA_034_API /__ready
       - name: "EXPECTED FAILURE: missing state without bootstrap"
         run: |
           set +e
@@ -251,16 +233,7 @@ jobs:
           cat > "$out_dir/api-contributors.json" <<'JSON'
           [{"login":"bootstrap-pr","avatar_url":"","html_url":"https://github.com/bootstrap-pr","contributions":1}]
           JSON
-          nohup node scripts/fake-github-api.mjs 18035 "$out_dir" bootstrap-pr-token 26035 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18035/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18035/__ready >/dev/null
-          echo "CP_GHA_035_API=http://127.0.0.1:18035" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18035 "$out_dir" bootstrap-pr-token 26035 CP_GHA_035_API /__ready
       - name: Run bootstrap pull-request mode
         id: bootstrap
         run: |
@@ -342,16 +315,7 @@ jobs:
           cat > test-output/CP-GHA-036/invalid.yml <<'YAML'
           columns_per_row: nope
           YAML
-          nohup node scripts/fake-github-api.mjs 18036 test-output/CP-GHA-036 schema-token 26036 > test-output/CP-GHA-036/server.log 2>&1 &
-          echo "$!" > test-output/CP-GHA-036/server.pid
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18036/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18036/__ready >/dev/null
-          echo "CP_GHA_036_API=http://127.0.0.1:18036" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18036 test-output/CP-GHA-036 schema-token 26036 CP_GHA_036_API /__ready
       - name: "EXPECTED FAILURE: invalid config invariant"
         run: |
           set +e
@@ -558,16 +522,7 @@ jobs:
           cat > test-output/CP-GHA-038/.contributors.jsonl <<'JSONL'
           {"login":"bundle-smoke","name":"Bundle Smoke","profile":"https://example.com/bundle-smoke","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18038 test-output/CP-GHA-038 bundle-token 26038 > test-output/CP-GHA-038/server.log 2>&1 &
-          echo "$!" > test-output/CP-GHA-038/server.pid
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18038/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18038/__ready >/dev/null
-          echo "CP_GHA_038_API=http://127.0.0.1:18038" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18038 test-output/CP-GHA-038 bundle-token 26038 CP_GHA_038_API /__ready
       - name: Run rebuilt action smoke
         id: smoke
         run: |
@@ -636,16 +591,7 @@ jobs:
           entry_template: "{{login}} {{title}}"
           min_contributions: 1
           YAML
-          nohup node scripts/fake-github-api.mjs 18044 "$out_dir" cli-parity-token 26044 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18044/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18044/__ready >/dev/null
-          echo "CP_GHA_044_API=http://127.0.0.1:18044" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18044 "$out_dir" cli-parity-token 26044 CP_GHA_044_API /__ready
       - name: Run published CLI validate and render
         run: |
           set -euo pipefail
@@ -718,16 +664,7 @@ jobs:
           {"login":"commit-message-${case_id}","name":"Commit Message ${case_id}","profile":"https://example.com/commit-message-${case_id}","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           done
-          nohup node scripts/fake-github-api.mjs 18047 "$out_dir" commit-message-token 26047 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18047/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18047/__ready >/dev/null
-          echo "CP_GHA_047_API=http://127.0.0.1:18047" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18047 "$out_dir" commit-message-token 26047 CP_GHA_047_API /__ready
       - name: Default commit message
         id: default_message
         run: |

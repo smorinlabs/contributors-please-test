@@ -66,16 +66,7 @@ jobs:
           {"login":"beta-render","name":"Beta Render","profile":"https://example.com/beta-render","avatar":"","source":"commit","pinned":false,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":2,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           {"login":"gamma-render","name":"Gamma Render","profile":"https://example.com/gamma-render","avatar":"","source":"commit","pinned":false,"categories":["quality"],"title":"Quality Contributor","emoji":"test","commits":1,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18014 "$out_dir" render-bot-014 14014 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18014/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18014/__ready >/dev/null
-          echo "CP_GHA_014_API=http://127.0.0.1:18014" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18014 "$out_dir" render-bot-014 14014 CP_GHA_014_API /__ready
       - name: Run empty bare rendering
         id: empty
         run: |
@@ -179,16 +170,7 @@ jobs:
           End.
           EOF
           sha256sum "$out_dir/default-template.md" "$out_dir/template.md" > "$out_dir/template.before.sha256"
-          nohup node scripts/fake-github-api.mjs 18015 "$out_dir" render-bot-015 14015 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18015/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18015/__ready >/dev/null
-          echo "CP_GHA_015_API=http://127.0.0.1:18015" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18015 "$out_dir" render-bot-015 14015 CP_GHA_015_API /__ready
       - name: Run default placeholder template
         id: default_template
         run: |
@@ -282,16 +264,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"header-footer-tester","name":"Header Footer Tester","profile":"https://example.com/header-footer-tester","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Header Footer Tester","emoji":"docs","commits":0,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18016 "$out_dir" render-bot-016 14016 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18016/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18016/__ready >/dev/null
-          echo "CP_GHA_016_API=http://127.0.0.1:18016" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18016 "$out_dir" render-bot-016 14016 CP_GHA_016_API /__ready
       - name: Run header-only rendering
         id: header_only
         run: |
@@ -427,16 +400,7 @@ jobs:
             fs.writeFileSync(`${path}.suffix`, text.slice(text.indexOf(end)));
           }
           JS
-          nohup node scripts/fake-github-api.mjs 18017 "$out_dir" render-bot-017 14017 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18017/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18017/__ready >/dev/null
-          echo "CP_GHA_017_API=http://127.0.0.1:18017" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18017 "$out_dir" render-bot-017 14017 CP_GHA_017_API /__ready
       - name: Run default-marker in-place rendering
         id: default_markers
         run: |
@@ -575,16 +539,7 @@ jobs:
           cp "$out_dir/missing-marker.md" "$out_dir/missing-marker.before.md"
           cp "$out_dir/duplicate-marker.md" "$out_dir/duplicate-marker.before.md"
           cp "$out_dir/inverted-marker.md" "$out_dir/inverted-marker.before.md"
-          nohup node scripts/fake-github-api.mjs 18018 "$out_dir" render-bot-018 14018 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18018/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18018/__ready >/dev/null
-          echo "CP_GHA_018_API=http://127.0.0.1:18018" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18018 "$out_dir" render-bot-018 14018 CP_GHA_018_API /__ready
       - name: Run valid control
         id: control
         run: |
@@ -786,16 +741,7 @@ jobs:
           fs.writeFileSync(`${path}.prefix`, text.slice(0, text.indexOf(start) + start.length));
           fs.writeFileSync(`${path}.suffix`, text.slice(text.indexOf(end)));
           JS
-          nohup node scripts/fake-github-api.mjs 18019 "$out_dir" render-bot-019 14019 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18019/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18019/__ready >/dev/null
-          echo "CP_GHA_019_API=http://127.0.0.1:18019" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18019 "$out_dir" render-bot-019 14019 CP_GHA_019_API /__ready
       - name: Run config-driven in-place rendering
         id: contributors
         run: |

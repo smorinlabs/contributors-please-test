@@ -69,16 +69,7 @@ jobs:
           printf '[]\n' > "$out_dir/api-contributors.json"
           sed -n '1,16p' .github/workflows/acceptance-loopguards.yml > "$out_dir/path-ignore-evidence.txt"
           git rev-parse HEAD > "$out_dir/head-before.txt"
-          nohup node scripts/fake-github-api.mjs 18039 "$out_dir" loopguard-bot 39039 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18039/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18039/__ready >/dev/null
-          echo "CP_GHA_039_API=http://127.0.0.1:18039" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18039 "$out_dir" loopguard-bot 39039 CP_GHA_039_API /__ready
       - name: First default commit run
         id: first
         run: |
