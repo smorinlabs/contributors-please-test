@@ -55,6 +55,7 @@ jobs:
           token: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve target actor
         id: target-actor
@@ -138,11 +139,13 @@ jobs:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'main' }}
           path: ${{ env.ACTION_PATH }}
+          persist-credentials: false
 
       - name: Exclude checked-out action from target git status
         run: |
           set -euo pipefail
           printf '%s\n' "${ACTION_PATH}/" >> .git/info/exclude
+          git config --local --unset-all http.https://github.com/.extraheader || true
 
       - name: Run commit mode bootstrap
         id: commit-bootstrap
