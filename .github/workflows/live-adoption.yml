@@ -149,36 +149,27 @@ jobs:
 
       - name: Run commit mode bootstrap
         id: commit-bootstrap
-        continue-on-error: true
-        uses: ./.github/actions/contributors-please-action
         env:
-          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
-          GITHUB_REF_NAME: main
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
-          mode: commit
-          bootstrap: true
-          output-file: CONTRIBUTORS.md
-          state-file: .contributors.jsonl
-          config-file: .contributors.yml
-          entry-template: "{{login}} | {{title}} | {{commits}}"
-          min-contributions: "1"
-          unignore: ${{ steps.target-actor.outputs.login }}
-          commit-message: |
-            test: live adoption commit mode
-
-            [skip ci]
-
-      - name: Diagnose commit mode bootstrap failure
-        if: ${{ steps.commit-bootstrap.outcome == 'failure' }}
+          TARGET_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
         run: |
           set -euo pipefail
-          git status --short
-          git log -1 --format='%H %an <%ae> %s'
-          git remote get-url origin | sed -E 's#x-access-token:[^@]+@#x-access-token:***@#'
-          git config --local --get-regexp '^http\..*extraheader' || true
-          git push origin HEAD:main
-          exit 1
+          env \
+            GITHUB_ACTIONS=true \
+            GITHUB_REPOSITORY="${TARGET_OWNER}/${TARGET_REPO}" \
+            GITHUB_SERVER_URL="${GITHUB_SERVER_URL}" \
+            GITHUB_REF_NAME=main \
+            "INPUT_PAT=${TARGET_TOKEN}" \
+            "INPUT_MODE=commit" \
+            "INPUT_BOOTSTRAP=true" \
+            "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
+            "INPUT_STATE-FILE=.contributors.jsonl" \
+            "INPUT_CONFIG-FILE=.contributors.yml" \
+            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
+            "INPUT_MIN-CONTRIBUTIONS=1" \
+            "INPUT_UNIGNORE=${E2E_LOGIN}" \
+            "INPUT_COMMIT-MESSAGE=docs: update contributors" \
+            node "${ACTION_PATH}/dist/index.js"
 
       - name: Verify commit mode persisted files
         env:
@@ -225,24 +216,27 @@ jobs:
 
       - name: Run commit mode after incremental state change
         id: commit-incremental
-        uses: ./.github/actions/contributors-please-action
         env:
-          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
-          GITHUB_REF_NAME: main
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
-          mode: commit
-          bootstrap: true
-          output-file: CONTRIBUTORS.md
-          state-file: .contributors.jsonl
-          config-file: .contributors.yml
-          entry-template: "{{login}} | {{title}} | {{commits}}"
-          min-contributions: "1"
-          unignore: ${{ steps.target-actor.outputs.login }}
-          commit-message: |
-            test: live adoption incremental render
-
-            [skip ci]
+          TARGET_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+        run: |
+          set -euo pipefail
+          env \
+            GITHUB_ACTIONS=true \
+            GITHUB_REPOSITORY="${TARGET_OWNER}/${TARGET_REPO}" \
+            GITHUB_SERVER_URL="${GITHUB_SERVER_URL}" \
+            GITHUB_REF_NAME=main \
+            "INPUT_PAT=${TARGET_TOKEN}" \
+            "INPUT_MODE=commit" \
+            "INPUT_BOOTSTRAP=true" \
+            "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
+            "INPUT_STATE-FILE=.contributors.jsonl" \
+            "INPUT_CONFIG-FILE=.contributors.yml" \
+            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
+            "INPUT_MIN-CONTRIBUTIONS=1" \
+            "INPUT_UNIGNORE=${E2E_LOGIN}" \
+            "INPUT_COMMIT-MESSAGE=docs: update contributors" \
+            node "${ACTION_PATH}/dist/index.js"
 
       - name: Verify incremental state rendered and preserved
         env:
@@ -270,20 +264,26 @@ jobs:
 
       - name: Run idempotent commit mode
         id: commit-idempotent
-        uses: ./.github/actions/contributors-please-action
         env:
-          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
-          GITHUB_REF_NAME: main
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
-          mode: commit
-          bootstrap: true
-          output-file: CONTRIBUTORS.md
-          state-file: .contributors.jsonl
-          config-file: .contributors.yml
-          entry-template: "{{login}} | {{title}} | {{commits}}"
-          min-contributions: "1"
-          unignore: ${{ steps.target-actor.outputs.login }}
+          TARGET_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+        run: |
+          set -euo pipefail
+          env \
+            GITHUB_ACTIONS=true \
+            GITHUB_REPOSITORY="${TARGET_OWNER}/${TARGET_REPO}" \
+            GITHUB_SERVER_URL="${GITHUB_SERVER_URL}" \
+            GITHUB_REF_NAME=main \
+            "INPUT_PAT=${TARGET_TOKEN}" \
+            "INPUT_MODE=commit" \
+            "INPUT_BOOTSTRAP=true" \
+            "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
+            "INPUT_STATE-FILE=.contributors.jsonl" \
+            "INPUT_CONFIG-FILE=.contributors.yml" \
+            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
+            "INPUT_MIN-CONTRIBUTIONS=1" \
+            "INPUT_UNIGNORE=${E2E_LOGIN}" \
+            node "${ACTION_PATH}/dist/index.js"
 
       - name: Verify idempotent run made no file changes
         env:
@@ -332,20 +332,26 @@ jobs:
 
       - name: Run pull-request mode
         id: pull-request
-        uses: ./.github/actions/contributors-please-action
         env:
-          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
-          GITHUB_REF_NAME: main
-        with:
-          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
-          mode: pull-request
-          bootstrap: true
-          output-file: CONTRIBUTORS.md
-          state-file: .contributors.jsonl
-          config-file: .contributors.yml
-          entry-template: "{{login}} | {{title}} | {{commits}}"
-          min-contributions: "1"
-          unignore: ${{ steps.target-actor.outputs.login }}
+          TARGET_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+        run: |
+          set -euo pipefail
+          env \
+            GITHUB_ACTIONS=true \
+            GITHUB_REPOSITORY="${TARGET_OWNER}/${TARGET_REPO}" \
+            GITHUB_SERVER_URL="${GITHUB_SERVER_URL}" \
+            GITHUB_REF_NAME=main \
+            "INPUT_PAT=${TARGET_TOKEN}" \
+            "INPUT_MODE=pull-request" \
+            "INPUT_BOOTSTRAP=true" \
+            "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
+            "INPUT_STATE-FILE=.contributors.jsonl" \
+            "INPUT_CONFIG-FILE=.contributors.yml" \
+            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
+            "INPUT_MIN-CONTRIBUTIONS=1" \
+            "INPUT_UNIGNORE=${E2E_LOGIN}" \
+            node "${ACTION_PATH}/dist/index.js"
 
       - name: Verify pull request mode side effects
         env:
