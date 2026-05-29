@@ -118,26 +118,19 @@ jobs:
           sort: alphabetical
           min_contributions: 1
           YAML
+          today="$(date -u +%F)"
+          existing_login="live-existing-${GITHUB_RUN_ID}"
+          cat > .contributors.jsonl <<JSONL
+          {"login":"${existing_login}","name":"Live Existing ${GITHUB_RUN_ID}","profile":"https://example.com/${existing_login}","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Existing Live","emoji":"docs","commits":0,"first_seen":"${today}","last_updated":"${today}"}
+          JSONL
 
-          git add .contributors.yml "$seed_path"
+          git add .contributors.yml .contributors.jsonl "$seed_path"
           GIT_AUTHOR_NAME="$FIXTURE_NAME" \
           GIT_AUTHOR_EMAIL="$FIXTURE_EMAIL" \
           GIT_COMMITTER_NAME="$FIXTURE_NAME" \
           GIT_COMMITTER_EMAIL="$FIXTURE_EMAIL" \
             git commit -m "test: live adoption seed ${GITHUB_RUN_ID}"
           git push origin HEAD:main
-
-          for _ in {1..30}; do
-            if gh api "/repos/${TARGET_OWNER}/${TARGET_REPO}/contributors?per_page=100" \
-              --jq '.[].login' \
-              | grep -Fx "$E2E_LOGIN" >/dev/null; then
-              break
-            fi
-            sleep 5
-          done
-          gh api "/repos/${TARGET_OWNER}/${TARGET_REPO}/contributors?per_page=100" \
-            --jq '.[].login' \
-            | grep -Fx "$E2E_LOGIN" >/dev/null
 
       - name: Checkout action under test
         uses: actions/checkout@v4
@@ -177,9 +170,9 @@ jobs:
           CHANGED: ${{ steps.commit-bootstrap.outputs.changed }}
           COMMIT_SHA: ${{ steps.commit-bootstrap.outputs.commit-sha }}
           CONTRIBUTORS_JSON: ${{ steps.commit-bootstrap.outputs.contributors-json }}
-          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
         run: |
           set -euo pipefail
+          existing_login="live-existing-${GITHUB_RUN_ID}"
           test "$CHANGED" = "true"
           test -n "$COMMIT_SHA"
           git fetch origin main
@@ -187,8 +180,9 @@ jobs:
           git reset --hard origin/main
           test -s CONTRIBUTORS.md
           test -s .contributors.jsonl
-          grep -F "$E2E_LOGIN" CONTRIBUTORS.md
-          node -e 'const contributors=JSON.parse(process.env.CONTRIBUTORS_JSON); if (!contributors.some(c => c.login === process.env.E2E_LOGIN)) process.exit(1);'
+          grep -F "$existing_login | Existing Live | 0" CONTRIBUTORS.md
+          grep -F "\"login\":\"$existing_login\"" .contributors.jsonl
+          node -e 'const contributors=JSON.parse(process.env.CONTRIBUTORS_JSON); const expected="live-existing-" + process.env.GITHUB_RUN_ID; if (!contributors.some(c => c.login === expected)) process.exit(1);'
           shasum -a 256 CONTRIBUTORS.md .contributors.jsonl > test-output/live-adoption/commit-bootstrap.sha256
           {
             echo "commit-bootstrap.changed=$CHANGED"
@@ -239,16 +233,16 @@ jobs:
         env:
           CHANGED: ${{ steps.commit-incremental.outputs.changed }}
           COMMIT_SHA: ${{ steps.commit-incremental.outputs.commit-sha }}
-          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
         run: |
           set -euo pipefail
+          existing_login="live-existing-${GITHUB_RUN_ID}"
           declared_login="live-declared-${GITHUB_RUN_ID}"
           test "$CHANGED" = "true"
           test -n "$COMMIT_SHA"
           git fetch origin main
           git checkout main
           git reset --hard origin/main
-          grep -F "$E2E_LOGIN" CONTRIBUTORS.md
+          grep -F "$existing_login | Existing Live | 0" CONTRIBUTORS.md
           grep -F "$declared_login | Live Declared | 0" CONTRIBUTORS.md
           grep -F "\"login\":\"$declared_login\"" .contributors.jsonl
           grep -F '"source":"declared"' .contributors.jsonl
@@ -302,13 +296,18 @@ jobs:
           git reset --hard origin/main
           git push origin --delete contributors-please/update || true
           git rm -f CONTRIBUTORS.md .contributors.jsonl
+          today="$(date -u +%F)"
+          pr_login="live-pr-${GITHUB_RUN_ID}"
+          cat > .contributors.jsonl <<JSONL
+          {"login":"${pr_login}","name":"Live PR ${GITHUB_RUN_ID}","profile":"https://example.com/${pr_login}","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Pull Request Live","emoji":"docs","commits":0,"last_updated":"${today}"}
+          JSONL
           pr_path="live-fixtures/${GITHUB_RUN_ID}-pr.md"
           {
             echo "# Live adoption PR"
             echo ""
             echo "run: ${GITHUB_RUN_ID}"
           } > "$pr_path"
-          git add "$pr_path"
+          git add .contributors.jsonl "$pr_path"
           GIT_AUTHOR_NAME="$FIXTURE_NAME" \
           GIT_AUTHOR_EMAIL="$FIXTURE_EMAIL" \
           GIT_COMMITTER_NAME="$FIXTURE_NAME" \
