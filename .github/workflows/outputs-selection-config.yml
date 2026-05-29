@@ -63,16 +63,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"outputs-tester","name":"Outputs Tester","profile":"https://example.com/outputs-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":3,"first_seen":"2026-05-27","last_updated":"2026-05-27"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18027 "$out_dir" outputs-bot-027 27027 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18027/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18027/__ready >/dev/null
-          echo "CP_GHA_027_API=http://127.0.0.1:18027" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18027 "$out_dir" outputs-bot-027 27027 CP_GHA_027_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |
@@ -193,16 +184,7 @@ jobs:
           cp "$out_dir/base.jsonl" "$out_dir/alphabetical.jsonl"
           cp "$out_dir/base.jsonl" "$out_dir/contributions.jsonl"
           cp "$out_dir/base.jsonl" "$out_dir/first-seen.jsonl"
-          nohup node scripts/fake-github-api.mjs 18028 "$out_dir" selection-bot-028 28028 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18028/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18028/__ready >/dev/null
-          echo "CP_GHA_028_API=http://127.0.0.1:18028" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18028 "$out_dir" selection-bot-028 28028 CP_GHA_028_API /__ready
       - name: Run alphabetical selection
         id: alphabetical
         run: |
@@ -333,16 +315,7 @@ jobs:
             ".":
               entry_template: "{{login}} flat"
           YAML
-          nohup node scripts/fake-github-api.mjs 18029 "$out_dir" config-bot-029 29029 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18029/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18029/__ready >/dev/null
-          echo "CP_GHA_029_API=http://127.0.0.1:18029" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18029 "$out_dir" config-bot-029 29029 CP_GHA_029_API /__ready
       - name: Run flat config
         id: flat
         run: |
@@ -434,16 +407,7 @@ jobs:
             "packages/api":
               entry_template: "{{login}}"
           YAML
-          nohup node scripts/fake-github-api.mjs 18030 "$out_dir" package-bot-030 30030 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18030/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18030/__ready >/dev/null
-          echo "CP_GHA_030_API=http://127.0.0.1:18030" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18030 "$out_dir" package-bot-030 30030 CP_GHA_030_API /__ready
       - name: Run control contributors file
         id: control
         run: |
@@ -540,16 +504,7 @@ jobs:
           cat > .contributors.yml <<'YAML'
           entry_template: "{{login}}"
           YAML
-          nohup node scripts/fake-github-api.mjs 18045 test-output/CP-GHA-045 defaults-bot-045 45045 > test-output/CP-GHA-045/server.log 2>&1 &
-          echo "$!" > test-output/CP-GHA-045/server.pid
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18045/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18045/__ready >/dev/null
-          echo "CP_GHA_045_API=http://127.0.0.1:18045" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18045 test-output/CP-GHA-045 defaults-bot-045 45045 CP_GHA_045_API /__ready
       - name: Run contributors-please with defaults
         id: contributors
         run: |
@@ -625,16 +580,7 @@ jobs:
           cat > "$out_dir/config/custom.yml" <<'YAML'
           entry_template: "{{login}} custom"
           YAML
-          nohup node scripts/fake-github-api.mjs 18046 "$out_dir" custom-path-bot-046 46046 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18046/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18046/__ready >/dev/null
-          echo "CP_GHA_046_API=http://127.0.0.1:18046" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18046 "$out_dir" custom-path-bot-046 46046 CP_GHA_046_API /__ready
       - name: Run contributors-please
         id: contributors
         run: |

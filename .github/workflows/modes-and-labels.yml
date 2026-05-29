@@ -64,16 +64,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"commit-mode-tester","name":"Commit Mode Tester","profile":"https://example.com/commit-mode-tester","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18021 "$out_dir" commit-mode-bot 21021 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18021/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18021/__ready >/dev/null
-          echo "CP_GHA_021_API=http://127.0.0.1:18021" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18021 "$out_dir" commit-mode-bot 21021 CP_GHA_021_API /__ready
       - name: First commit-mode run
         id: first
         run: |
@@ -155,16 +146,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"pr-mode-one","name":"PR Mode One","profile":"https://example.com/pr-mode-one","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Docs Contributor","emoji":"docs","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18022 "$out_dir" pr-mode-bot 22022 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18022/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18022/__ready >/dev/null
-          echo "CP_GHA_022_API=http://127.0.0.1:18022" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18022 "$out_dir" pr-mode-bot 22022 CP_GHA_022_API /__ready
       - name: First pull-request run
         id: first
         run: |
@@ -285,16 +267,7 @@ jobs:
           {"login":"branch-protection-control","name":"Branch Protection Control","profile":"https://example.com/branch-protection-control","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           printf 'branch-protection-control\n' > "$out_dir/control-contributors.md"
-          nohup node scripts/fake-github-api.mjs 18023 "$out_dir" branch-protection-bot 23023 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18023/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18023/__ready >/dev/null
-          echo "CP_GHA_023_API=http://127.0.0.1:18023" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18023 "$out_dir" branch-protection-bot 23023 CP_GHA_023_API /__ready
       - name: Run valid control
         id: control
         run: |
@@ -535,16 +508,7 @@ jobs:
           {"login":"dry-run-tester","name":"Dry Run Tester","profile":"https://example.com/dry-run-tester","avatar":"","source":"commit","pinned":false,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":2,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           done
-          nohup node scripts/fake-github-api.mjs 18025 "$out_dir" dry-run-bot 25025 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18025/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18025/__ready >/dev/null
-          echo "CP_GHA_025_API=http://127.0.0.1:18025" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18025 "$out_dir" dry-run-bot 25025 CP_GHA_025_API /__ready
       - name: Non-dry-run control output
         run: |
           set -euo pipefail
@@ -657,16 +621,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"label-lifecycle-one","name":"Label Lifecycle One","profile":"https://example.com/label-lifecycle-one","avatar":"","source":"declared","pinned":true,"categories":["code"],"title":"Code Contributor","emoji":"code","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18026 "$out_dir" label-bot 26026 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18026/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18026/__ready >/dev/null
-          echo "CP_GHA_026_API=http://127.0.0.1:18026" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18026 "$out_dir" label-bot 26026 CP_GHA_026_API /__ready
       - name: Open PR with label
         id: first
         run: |

@@ -64,16 +64,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"app-token-tester","name":"App Token Tester","profile":"https://example.com/app-token-tester","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"App Token Tester","emoji":"app","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18001 "$out_dir" contributors-please-test-app 26001 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18001/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18001/__ready >/dev/null
-          echo "CP_GHA_001_API=http://127.0.0.1:18001" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18001 "$out_dir" contributors-please-test-app 26001 CP_GHA_001_API /__ready
       - name: Run contributors-please with App and PAT inputs
         id: contributors
         run: |
@@ -139,16 +130,7 @@ jobs:
           cat > "$out_dir/.contributors.jsonl" <<'JSONL'
           {"login":"pat-token-tester","name":"PAT Token Tester","profile":"https://example.com/pat-token-tester","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"PAT Token Tester","emoji":"pat","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
-          nohup node scripts/fake-github-api.mjs 18002 "$out_dir" pat-token-user 26002 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18002/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18002/__ready >/dev/null
-          echo "CP_GHA_002_API=http://127.0.0.1:18002" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18002 "$out_dir" pat-token-user 26002 CP_GHA_002_API /__ready
       - name: Run contributors-please with PAT
         id: contributors
         run: |
@@ -210,16 +192,7 @@ jobs:
           {"login":"missing-credentials-control","name":"Missing Credentials Control","profile":"https://example.com/missing-credentials-control","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Missing Credentials Control","emoji":"ctrl","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           cp "$out_dir/control.jsonl" "$out_dir/.contributors.jsonl"
-          nohup node scripts/fake-github-api.mjs 18003 "$out_dir" missing-credentials-control 26003 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18003/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18003/__ready >/dev/null
-          echo "CP_GHA_003_API=http://127.0.0.1:18003" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18003 "$out_dir" missing-credentials-control 26003 CP_GHA_003_API /__ready
       - name: Run valid control
         run: |
           env \
@@ -312,16 +285,7 @@ jobs:
           cat > "$out_dir/api-contributors.json" <<'JSON'
           [{"login":"discovery-tester","avatar_url":"","html_url":"https://github.com/discovery-tester","contributions":2}]
           JSON
-          nohup node scripts/fake-github-api.mjs 18004 "$out_dir" discovery-pat-user 26004 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18004/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18004/__ready >/dev/null
-          echo "CP_GHA_004_API=http://127.0.0.1:18004" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18004 "$out_dir" discovery-pat-user 26004 CP_GHA_004_API /__ready
       - name: Run contributors-please discovery
         id: contributors
         run: |
@@ -399,16 +363,7 @@ jobs:
           JSONL
           git clone --depth=1 "file://$source_repo" "$shallow_repo"
           test "$(git -C "$shallow_repo" rev-parse --is-shallow-repository)" = "true"
-          nohup node scripts/fake-github-api.mjs 18005 "$out_dir" shallow-pat-user 26005 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18005/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18005/__ready >/dev/null
-          echo "CP_GHA_005_API=http://127.0.0.1:18005" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18005 "$out_dir" shallow-pat-user 26005 CP_GHA_005_API /__ready
       - name: Run valid full-depth control
         run: |
           action_dist="$GITHUB_WORKSPACE/.github/actions/contributors-please-action/dist/index.js"
@@ -491,16 +446,7 @@ jobs:
           {"login":"self-exclusion-bot","name":"Self Exclusion Bot","profile":"https://example.com/self-exclusion-bot","avatar":"","source":"declared","pinned":true,"categories":["ops"],"title":"Self Exclusion Bot","emoji":"bot","commits":0,"first_seen":"2026-05-28","last_updated":"2026-05-28"}
           JSONL
           cp "$out_dir/filtered.jsonl" "$out_dir/unignore.jsonl"
-          nohup node scripts/fake-github-api.mjs 18006 "$out_dir" self-exclusion-bot 26006 > "$out_dir/server.log" 2>&1 &
-          echo "$!" > "$out_dir/server.pid"
-          for _ in {1..60}; do
-            if curl -fsS http://127.0.0.1:18006/__ready >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS http://127.0.0.1:18006/__ready >/dev/null
-          echo "CP_GHA_006_API=http://127.0.0.1:18006" >> "$GITHUB_ENV"
+          bash scripts/start-fake-api.sh 18006 "$out_dir" self-exclusion-bot 26006 CP_GHA_006_API /__ready
       - name: Run contributors-please with self-exclusion
         id: contributors
         run: |
