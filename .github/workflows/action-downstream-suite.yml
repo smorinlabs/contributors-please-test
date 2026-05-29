@@ -65,6 +65,7 @@ jobs:
             network-ghe-security.yml
             bootstrap-cli-api-build.yml
             acceptance-loopguards.yml
+            live-adoption.yml
           )
 
           for workflow in "${workflows[@]}"; do
@@ -74,10 +75,13 @@ jobs:
               workflow run "${workflow}"
               --repo "${GITHUB_REPOSITORY}"
               --ref main
-              -f test_id=all
               -f action_ref="${ACTION_REF}"
               -f suite_run_id="${SUITE_RUN_ID}"
             )
+
+            if [[ "${workflow}" != "live-adoption.yml" ]]; then
+              args+=(-f test_id=all)
+            fi
 
             if [[ "${workflow}" == "bootstrap-cli-api-build.yml" ]]; then
               args+=(-f library_ref="${LIBRARY_REF}")

@@ -47,8 +47,10 @@ const expectedWorkflows = {
   "acceptance-loopguards.yml": ["039", "040"],
 };
 const orchestratorWorkflow = "action-downstream-suite.yml";
+const liveAdoptionWorkflow = "live-adoption.yml";
 const expectedWorkflowFiles = [
   ...Object.keys(expectedWorkflows),
+  liveAdoptionWorkflow,
   orchestratorWorkflow,
 ].sort();
 
@@ -243,6 +245,34 @@ for (const marker of [
 for (const file of Object.keys(expectedWorkflows)) {
   assert(orchestrator.includes(file), `${orchestratorWorkflow} does not dispatch ${file}`);
 }
+assert(
+  orchestrator.includes(liveAdoptionWorkflow),
+  `${orchestratorWorkflow} does not dispatch ${liveAdoptionWorkflow}`,
+);
+
+const liveAdoption = readFileSync(join(workflowDir, liveAdoptionWorkflow), "utf8");
+for (const marker of [
+  "CONTRIBUTORS_PLEASE_E2E_TOKEN",
+  "CONTRIBUTORS_PLEASE_E2E_OWNER",
+  "CONTRIBUTORS_PLEASE_E2E_REPO",
+  "smorinlabs/contributors-please-action",
+  "mode: commit",
+  "mode: pull-request",
+  "bootstrap: true",
+  "unignore:",
+  ".contributors.jsonl",
+  "CONTRIBUTORS.md",
+  "contributors-please/update",
+  "gh pr view",
+  "changed",
+  "commit-sha",
+  "pr-opened",
+  "pr-number",
+  "live-adoption-evidence",
+  "include-hidden-files: true",
+]) {
+  assert(liveAdoption.includes(marker), `${liveAdoptionWorkflow} missing ${marker}`);
+}
 
 for (const id of expectedFailureIds) {
   const file = Object.entries(expectedWorkflows).find(([, ids]) => ids.includes(id))?.[0];
@@ -374,5 +404,5 @@ if (errors.length) {
 }
 
 console.log(
-  `validated ${Object.keys(expectedWorkflows).length} contributors-please-test workflows, 1 orchestrator workflow, and ${plannedGhaIds.length} CP-GHA IDs`,
+  `validated ${Object.keys(expectedWorkflows).length} grouped contributors-please-test workflows, 1 live adoption workflow, 1 orchestrator workflow, and ${plannedGhaIds.length} CP-GHA IDs`,
 );

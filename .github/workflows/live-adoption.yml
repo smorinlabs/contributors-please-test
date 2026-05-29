@@ -1,0 +1,392 @@
+name: contributors-please live adoption
+
+run-name: live adoption suite ${{ inputs.suite_run_id || github.run_id }} action-ref ${{ inputs.action_ref || 'main' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: contributors-please-action ref to test.
+        required: false
+        default: main
+      suite_run_id:
+        description: Upstream run ID used to correlate downstream runs.
+        required: false
+        default: manual
+      target_owner:
+        description: Scratch repository owner.
+        required: false
+        default: smorinlabs
+      target_repo:
+        description: Scratch repository name.
+        required: false
+        default: contributors-please-e2e
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contributors-please-live-adoption-${{ inputs.action_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  ACTION_PATH: .github/actions/contributors-please-action
+  TARGET_OWNER: ${{ inputs.target_owner || vars.CONTRIBUTORS_PLEASE_E2E_OWNER || 'smorinlabs' }}
+  TARGET_REPO: ${{ inputs.target_repo || vars.CONTRIBUTORS_PLEASE_E2E_REPO || 'contributors-please-e2e' }}
+
+jobs:
+  live-adoption:
+    name: Real scratch repository adoption
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify target configuration
+        env:
+          TARGET_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$TARGET_OWNER"
+          test -n "$TARGET_REPO"
+          test -n "$TARGET_TOKEN"
+
+      - name: Checkout scratch repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          token: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve target actor
+        id: target-actor
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+        run: |
+          set -euo pipefail
+          login="$(gh api user --jq .login)"
+          user_id="$(gh api user --jq .id)"
+          test -n "$login"
+          test -n "$user_id"
+          {
+            echo "login=$login"
+            echo "email=${user_id}+${login}@users.noreply.github.com"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prepare clean live adoption baseline
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+          E2E_EMAIL: ${{ steps.target-actor.outputs.email }}
+        run: |
+          set -euo pipefail
+          mkdir -p test-output/live-adoption live-fixtures
+          git config user.name "contributors-please live e2e"
+          git config user.email "contributors-please-e2e@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_OWNER}/${TARGET_REPO}.git"
+
+          gh pr list \
+            --repo "$TARGET_OWNER/$TARGET_REPO" \
+            --state open \
+            --head "$TARGET_OWNER:contributors-please/update" \
+            --json number \
+            --jq '.[].number' \
+            | while read -r pr_number; do
+                if [[ -n "$pr_number" ]]; then
+                  gh pr close "$pr_number" \
+                    --repo "$TARGET_OWNER/$TARGET_REPO" \
+                    --comment "Closing stale contributors-please live adoption PR before run ${GITHUB_RUN_ID}." \
+                    --delete-branch || true
+                fi
+              done
+
+          git fetch origin main --prune
+          git checkout main
+          git reset --hard origin/main
+          git push origin --delete contributors-please/update || true
+
+          git rm -f CONTRIBUTORS.md .contributors.jsonl .contributors.yml || true
+          seed_path="live-fixtures/${GITHUB_RUN_ID}-seed.md"
+          {
+            echo "# Live adoption seed"
+            echo ""
+            echo "run: ${GITHUB_RUN_ID}"
+          } > "$seed_path"
+          cat > .contributors.yml <<'YAML'
+          entry_template: "{{login}} | {{title}} | {{commits}}"
+          sort: alphabetical
+          min_contributions: 1
+          YAML
+
+          git add .contributors.yml "$seed_path"
+          GIT_AUTHOR_NAME="$E2E_LOGIN" \
+          GIT_AUTHOR_EMAIL="$E2E_EMAIL" \
+          GIT_COMMITTER_NAME="$E2E_LOGIN" \
+          GIT_COMMITTER_EMAIL="$E2E_EMAIL" \
+            git commit -m "test: live adoption seed ${GITHUB_RUN_ID}"
+          git push origin HEAD:main
+
+          for _ in {1..30}; do
+            if gh api "/repos/${TARGET_OWNER}/${TARGET_REPO}/contributors?per_page=100" \
+              --jq '.[].login' \
+              | grep -Fx "$E2E_LOGIN" >/dev/null; then
+              break
+            fi
+            sleep 5
+          done
+          gh api "/repos/${TARGET_OWNER}/${TARGET_REPO}/contributors?per_page=100" \
+            --jq '.[].login' \
+            | grep -Fx "$E2E_LOGIN" >/dev/null
+
+      - name: Checkout action under test
+        uses: actions/checkout@v4
+        with:
+          repository: smorinlabs/contributors-please-action
+          ref: ${{ inputs.action_ref || 'main' }}
+          path: ${{ env.ACTION_PATH }}
+
+      - name: Exclude checked-out action from target git status
+        run: |
+          set -euo pipefail
+          printf '%s\n' "${ACTION_PATH}/" >> .git/info/exclude
+
+      - name: Run commit mode bootstrap
+        id: commit-bootstrap
+        uses: ./.github/actions/contributors-please-action
+        env:
+          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          GITHUB_REF_NAME: main
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          mode: commit
+          bootstrap: true
+          output-file: CONTRIBUTORS.md
+          state-file: .contributors.jsonl
+          config-file: .contributors.yml
+          entry-template: "{{login}} | {{title}} | {{commits}}"
+          min-contributions: "1"
+          unignore: ${{ steps.target-actor.outputs.login }}
+          commit-message: |
+            test: live adoption commit mode
+
+            [skip ci]
+
+      - name: Verify commit mode persisted files
+        env:
+          CHANGED: ${{ steps.commit-bootstrap.outputs.changed }}
+          COMMIT_SHA: ${{ steps.commit-bootstrap.outputs.commit-sha }}
+          CONTRIBUTORS_JSON: ${{ steps.commit-bootstrap.outputs.contributors-json }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+        run: |
+          set -euo pipefail
+          test "$CHANGED" = "true"
+          test -n "$COMMIT_SHA"
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          test -s CONTRIBUTORS.md
+          test -s .contributors.jsonl
+          grep -F "$E2E_LOGIN" CONTRIBUTORS.md
+          node -e 'const contributors=JSON.parse(process.env.CONTRIBUTORS_JSON); if (!contributors.some(c => c.login === process.env.E2E_LOGIN)) process.exit(1);'
+          shasum -a 256 CONTRIBUTORS.md .contributors.jsonl > test-output/live-adoption/commit-bootstrap.sha256
+          {
+            echo "commit-bootstrap.changed=$CHANGED"
+            echo "commit-bootstrap.commit-sha=$COMMIT_SHA"
+          } > test-output/live-adoption/commit-bootstrap.outputs
+
+      - name: Add declared contributor state
+        env:
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+          E2E_EMAIL: ${{ steps.target-actor.outputs.email }}
+        run: |
+          set -euo pipefail
+          today="$(date -u +%F)"
+          declared_login="live-declared-${GITHUB_RUN_ID}"
+          cat >> .contributors.jsonl <<JSONL
+          {"login":"${declared_login}","name":"Live Declared ${GITHUB_RUN_ID}","profile":"https://example.com/${declared_login}","avatar":"","source":"declared","pinned":true,"categories":["docs"],"title":"Live Declared","emoji":"docs","commits":0,"first_seen":"${today}","last_updated":"${today}"}
+          JSONL
+          git add .contributors.jsonl
+          GIT_AUTHOR_NAME="$E2E_LOGIN" \
+          GIT_AUTHOR_EMAIL="$E2E_EMAIL" \
+          GIT_COMMITTER_NAME="$E2E_LOGIN" \
+          GIT_COMMITTER_EMAIL="$E2E_EMAIL" \
+            git commit -m "test: add declared contributor ${GITHUB_RUN_ID}"
+          git push origin HEAD:main
+
+      - name: Run commit mode after incremental state change
+        id: commit-incremental
+        uses: ./.github/actions/contributors-please-action
+        env:
+          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          GITHUB_REF_NAME: main
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          mode: commit
+          bootstrap: true
+          output-file: CONTRIBUTORS.md
+          state-file: .contributors.jsonl
+          config-file: .contributors.yml
+          entry-template: "{{login}} | {{title}} | {{commits}}"
+          min-contributions: "1"
+          unignore: ${{ steps.target-actor.outputs.login }}
+          commit-message: |
+            test: live adoption incremental render
+
+            [skip ci]
+
+      - name: Verify incremental state rendered and preserved
+        env:
+          CHANGED: ${{ steps.commit-incremental.outputs.changed }}
+          COMMIT_SHA: ${{ steps.commit-incremental.outputs.commit-sha }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+        run: |
+          set -euo pipefail
+          declared_login="live-declared-${GITHUB_RUN_ID}"
+          test "$CHANGED" = "true"
+          test -n "$COMMIT_SHA"
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          grep -F "$E2E_LOGIN" CONTRIBUTORS.md
+          grep -F "$declared_login | Live Declared | 0" CONTRIBUTORS.md
+          grep -F "\"login\":\"$declared_login\"" .contributors.jsonl
+          grep -F '"source":"declared"' .contributors.jsonl
+          grep -F '"pinned":true' .contributors.jsonl
+          shasum -a 256 CONTRIBUTORS.md .contributors.jsonl > test-output/live-adoption/incremental.sha256
+          {
+            echo "commit-incremental.changed=$CHANGED"
+            echo "commit-incremental.commit-sha=$COMMIT_SHA"
+          } > test-output/live-adoption/commit-incremental.outputs
+
+      - name: Run idempotent commit mode
+        id: commit-idempotent
+        uses: ./.github/actions/contributors-please-action
+        env:
+          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          GITHUB_REF_NAME: main
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          mode: commit
+          bootstrap: true
+          output-file: CONTRIBUTORS.md
+          state-file: .contributors.jsonl
+          config-file: .contributors.yml
+          entry-template: "{{login}} | {{title}} | {{commits}}"
+          min-contributions: "1"
+          unignore: ${{ steps.target-actor.outputs.login }}
+
+      - name: Verify idempotent run made no file changes
+        env:
+          CHANGED: ${{ steps.commit-idempotent.outputs.changed }}
+          COMMIT_SHA: ${{ steps.commit-idempotent.outputs.commit-sha }}
+        run: |
+          set -euo pipefail
+          test "$CHANGED" = "false"
+          shasum -a 256 CONTRIBUTORS.md .contributors.jsonl > test-output/live-adoption/idempotent.sha256
+          cmp test-output/live-adoption/incremental.sha256 test-output/live-adoption/idempotent.sha256
+          {
+            echo "commit-idempotent.changed=$CHANGED"
+            echo "commit-idempotent.commit-sha=$COMMIT_SHA"
+          } > test-output/live-adoption/commit-idempotent.outputs
+
+      - name: Prepare pull request mode fixture
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          E2E_LOGIN: ${{ steps.target-actor.outputs.login }}
+          E2E_EMAIL: ${{ steps.target-actor.outputs.email }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          git push origin --delete contributors-please/update || true
+          git rm -f CONTRIBUTORS.md .contributors.jsonl
+          pr_path="live-fixtures/${GITHUB_RUN_ID}-pr.md"
+          {
+            echo "# Live adoption PR"
+            echo ""
+            echo "run: ${GITHUB_RUN_ID}"
+          } > "$pr_path"
+          git add "$pr_path"
+          GIT_AUTHOR_NAME="$E2E_LOGIN" \
+          GIT_AUTHOR_EMAIL="$E2E_EMAIL" \
+          GIT_COMMITTER_NAME="$E2E_LOGIN" \
+          GIT_COMMITTER_EMAIL="$E2E_EMAIL" \
+            git commit -m "test: live adoption pr fixture ${GITHUB_RUN_ID}"
+          git push origin HEAD:main
+
+      - name: Run pull-request mode
+        id: pull-request
+        uses: ./.github/actions/contributors-please-action
+        env:
+          GITHUB_REPOSITORY: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          GITHUB_REF_NAME: main
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          mode: pull-request
+          bootstrap: true
+          output-file: CONTRIBUTORS.md
+          state-file: .contributors.jsonl
+          config-file: .contributors.yml
+          entry-template: "{{login}} | {{title}} | {{commits}}"
+          min-contributions: "1"
+          unignore: ${{ steps.target-actor.outputs.login }}
+
+      - name: Verify pull request mode side effects
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          PR_OPENED: ${{ steps.pull-request.outputs.pr-opened }}
+          PR_NUMBER: ${{ steps.pull-request.outputs.pr-number }}
+          PR_URL: ${{ steps.pull-request.outputs.pr-url }}
+        run: |
+          set -euo pipefail
+          test "$PR_OPENED" = "true"
+          test -n "$PR_NUMBER"
+          test -n "$PR_URL"
+          gh pr view "$PR_NUMBER" \
+            --repo "$TARGET_OWNER/$TARGET_REPO" \
+            --json labels,files,headRefName,state,title,url \
+            > test-output/live-adoption/pull-request.json
+          node <<'NODE'
+          const fs = require("node:fs");
+          const pr = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request.json", "utf8"));
+          const labels = new Set(pr.labels.map(label => label.name));
+          const files = new Set(pr.files.map(file => file.path));
+          if (pr.headRefName !== "contributors-please/update") {
+            throw new Error(`unexpected head ref ${pr.headRefName}`);
+          }
+          if (!labels.has("contributors-please: pending")) {
+            throw new Error("missing pending label");
+          }
+          for (const path of [".contributors.jsonl", "CONTRIBUTORS.md"]) {
+            if (!files.has(path)) {
+              throw new Error(`missing PR file ${path}`);
+            }
+          }
+          NODE
+          {
+            echo "pull-request.pr-opened=$PR_OPENED"
+            echo "pull-request.pr-number=$PR_NUMBER"
+            echo "pull-request.pr-url=$PR_URL"
+          } > test-output/live-adoption/pull-request.outputs
+
+      - name: Summarize live adoption evidence
+        if: ${{ always() }}
+        run: |
+          {
+            echo "### contributors-please live adoption"
+            echo ""
+            echo "- target: ${TARGET_OWNER}/${TARGET_REPO}"
+            echo "- action ref: ${{ inputs.action_ref || 'main' }}"
+            echo "- commit bootstrap changed: ${{ steps.commit-bootstrap.outputs.changed }}"
+            echo "- incremental changed: ${{ steps.commit-incremental.outputs.changed }}"
+            echo "- idempotent changed: ${{ steps.commit-idempotent.outputs.changed }}"
+            echo "- pull request opened: ${{ steps.pull-request.outputs.pr-opened }}"
+            echo "- pull request number: ${{ steps.pull-request.outputs.pr-number }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload live adoption evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-adoption-evidence
+          path: test-output/live-adoption
+          include-hidden-files: true
