@@ -1046,21 +1046,24 @@ jobs:
           grep -F "<!-- contributors-please:start -->" "$file"
           grep -F "<!-- contributors-please:end -->" "$file"
           # Entry-template shape: "- [<name>](<profile>) - <title> (<n> commits)".
+          # NOTE: the action's GitHub client renders `name` as the login (it
+          # overrides the API's name field with the login at fetch time), so
+          # the rendered link text is the login string.
           # identity_map coalesced two emails ⇒ code-contrib has 4 commits.
-          grep -F -- "- [Code Contrib](" "$file" | grep -F "Code Contributor (4 commits)"
+          grep -F -- "- [code-contrib](" "$file" | grep -F "Code Contributor (4 commits)"
           # classification combination triggered ⇒ Project Contributor (3 commits).
-          grep -F -- "- [Poly Math](" "$file" | grep -F "Project Contributor (3 commits)"
+          grep -F -- "- [polymath](" "$file" | grep -F "Project Contributor (3 commits)"
           # docs-only contributor classified as Documentation Contributor.
-          grep -F -- "- [Docs Contrib](" "$file" | grep -F "Documentation Contributor (2 commits)"
+          grep -F -- "- [docs-contrib](" "$file" | grep -F "Documentation Contributor (2 commits)"
           # tests-only contributor classified as Quality Contributor.
-          grep -F -- "- [Quality Contrib](" "$file" | grep -F "Quality Contributor (1 commits)"
+          grep -F -- "- [quality-contrib](" "$file" | grep -F "Quality Contributor (1 commits)"
           # columns_per_row: 1 ⇒ one entry per line (no concatenated rows).
           entry_lines="$(grep -cE '^- \[' "$file")"
           test "$entry_lines" = "4"
           # ignore list honored — 'claude' has 5 commits and is NOT a [bot]
           # login; its absence proves config.ignore (not the implicit [bot]
           # filter) is what removed it.
-          if grep -E '^- \[Claude' "$file"; then
+          if grep -F -- "- [claude](" "$file"; then
             echo "ignore list not honored — 'claude' rendered" >&2
             exit 1
           fi
@@ -1080,7 +1083,7 @@ jobs:
           const body = text.slice(text.indexOf(start) + start.length, text.indexOf(end));
           const entries = body.split("\n").filter(line => line.startsWith("- ["));
           const names = entries.map(line => line.match(/^- \[([^\]]+)\]/)[1]);
-          const expected = ["Code Contrib", "Poly Math", "Docs Contrib", "Quality Contrib"];
+          const expected = ["code-contrib", "polymath", "docs-contrib", "quality-contrib"];
           if (JSON.stringify(names) !== JSON.stringify(expected)) {
             throw new Error(`sort order wrong: ${JSON.stringify(names)} expected ${JSON.stringify(expected)}`);
           }
