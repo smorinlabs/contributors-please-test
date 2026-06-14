@@ -615,8 +615,6 @@ jobs:
             'INPUT_CONFIG-FILE=test-output/CP-GHA-044/.contributors.yml' \
             'INPUT_MODE=check' \
             'INPUT_DRY-RUN=true' \
-            'INPUT_ENTRY-TEMPLATE={{login}} {{title}}' \
-            'INPUT_MIN-CONTRIBUTIONS=1' \
             node .github/actions/contributors-please-action/dist/index.js
       - name: Verify CLI and Action parity
         run: |
