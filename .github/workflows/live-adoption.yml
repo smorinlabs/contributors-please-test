@@ -165,8 +165,6 @@ jobs:
             "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
             "INPUT_STATE-FILE=.contributors.jsonl" \
             "INPUT_CONFIG-FILE=.contributors.yml" \
-            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
-            "INPUT_MIN-CONTRIBUTIONS=1" \
             "INPUT_UNIGNORE=${E2E_LOGIN}" \
             "INPUT_COMMIT-MESSAGE=docs: update contributors" \
             node "${ACTION_PATH}/dist/index.js"
@@ -232,8 +230,6 @@ jobs:
             "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
             "INPUT_STATE-FILE=.contributors.jsonl" \
             "INPUT_CONFIG-FILE=.contributors.yml" \
-            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
-            "INPUT_MIN-CONTRIBUTIONS=1" \
             "INPUT_UNIGNORE=${E2E_LOGIN}" \
             "INPUT_COMMIT-MESSAGE=docs: update contributors" \
             node "${ACTION_PATH}/dist/index.js"
@@ -280,8 +276,6 @@ jobs:
             "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
             "INPUT_STATE-FILE=.contributors.jsonl" \
             "INPUT_CONFIG-FILE=.contributors.yml" \
-            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
-            "INPUT_MIN-CONTRIBUTIONS=1" \
             "INPUT_UNIGNORE=${E2E_LOGIN}" \
             node "${ACTION_PATH}/dist/index.js"
 
@@ -348,8 +342,6 @@ jobs:
             "INPUT_OUTPUT-FILE=CONTRIBUTORS.md" \
             "INPUT_STATE-FILE=.contributors.jsonl" \
             "INPUT_CONFIG-FILE=.contributors.yml" \
-            "INPUT_ENTRY-TEMPLATE={{login}} | {{title}} | {{commits}}" \
-            "INPUT_MIN-CONTRIBUTIONS=1" \
             "INPUT_UNIGNORE=${E2E_LOGIN}" \
             node "${ACTION_PATH}/dist/index.js"
 
