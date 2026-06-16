@@ -87,18 +87,68 @@ jobs:
           git config user.email "contributors-please-e2e@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_OWNER}/${TARGET_REPO}.git"
 
-          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls" \
-            -f state=open \
-            -f head="${TARGET_OWNER}:contributors-please/update" \
-            --jq '.[].number' \
-            | while read -r pr_number; do
-                if [[ -n "$pr_number" ]]; then
-                  gh pr close "$pr_number" \
-                    --repo "$TARGET_OWNER/$TARGET_REPO" \
-                    --comment "Closing stale contributors-please live adoption PR before run ${GITHUB_RUN_ID}." \
-                    --delete-branch || true
-                fi
-              done
+          is_rate_limit_error() {
+            grep -qiE 'rate limit|secondary rate|abuse detection' "$1"
+          }
+
+          list_stale_prs() {
+            local rest_error="test-output/live-adoption/stale-pr-list-rest.err"
+            if gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls" \
+              -f state=open \
+              -f head="${TARGET_OWNER}:contributors-please/update" \
+              --jq '.[].number' 2>"${rest_error}"; then
+              echo "Stale PR listing API path: REST" >&2
+              return 0
+            fi
+
+            if is_rate_limit_error "${rest_error}"; then
+              echo "Stale PR listing REST hit a rate limit; using GraphQL fallback." >&2
+              gh pr list \
+                --repo "$TARGET_OWNER/$TARGET_REPO" \
+                --state open \
+                --head contributors-please/update \
+                --json number \
+                --jq '.[].number'
+              echo "Stale PR listing API path: GraphQL fallback" >&2
+              return 0
+            fi
+
+            cat "${rest_error}" >&2
+            return 1
+          }
+
+          close_stale_pr() {
+            local pr_number="$1"
+            local rest_error="test-output/live-adoption/stale-pr-cleanup-rest-${pr_number}.err"
+            local comment="Closing stale contributors-please live adoption PR before run ${GITHUB_RUN_ID}."
+
+            if gh api --method POST "repos/${TARGET_OWNER}/${TARGET_REPO}/issues/${pr_number}/comments" \
+              -f body="${comment}" 2>"${rest_error}" &&
+              gh api --method PATCH "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${pr_number}" \
+                -f state=closed 2>>"${rest_error}"; then
+              echo "Stale PR cleanup API path: REST" >&2
+              return 0
+            fi
+
+            if is_rate_limit_error "${rest_error}"; then
+              echo "Stale PR cleanup REST hit a rate limit; using GraphQL fallback." >&2
+              gh pr close "$pr_number" \
+                --repo "$TARGET_OWNER/$TARGET_REPO" \
+                --comment "${comment}" \
+                --delete-branch
+              echo "Stale PR cleanup API path: GraphQL fallback" >&2
+              return 0
+            fi
+
+            cat "${rest_error}" >&2
+            return 1
+          }
+
+          list_stale_prs | while read -r pr_number; do
+            if [[ -n "$pr_number" ]]; then
+              close_stale_pr "$pr_number" || true
+            fi
+          done
 
           git fetch origin main --prune
           git checkout main
@@ -354,14 +404,20 @@ jobs:
           test "$PR_OPENED" = "true"
           test -n "$PR_NUMBER"
           test -n "$PR_URL"
-          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${PR_NUMBER}" \
-            > test-output/live-adoption/pull-request-core.json
-          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/issues/${PR_NUMBER}" \
-            > test-output/live-adoption/pull-request-issue.json
-          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${PR_NUMBER}/files" \
-            -f per_page=100 \
-            > test-output/live-adoption/pull-request-files.json
-          node <<'NODE'
+          is_rate_limit_error() {
+            grep -qiE 'rate limit|secondary rate|abuse detection' "$1"
+          }
+
+          write_pr_snapshot_with_rest() {
+            local rest_error="test-output/live-adoption/pull-request-rest.err"
+            if gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${PR_NUMBER}" \
+              > test-output/live-adoption/pull-request-core.json 2>"${rest_error}" &&
+              gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/issues/${PR_NUMBER}" \
+                > test-output/live-adoption/pull-request-issue.json 2>>"${rest_error}" &&
+              gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${PR_NUMBER}/files" \
+                -f per_page=100 \
+                > test-output/live-adoption/pull-request-files.json 2>>"${rest_error}"; then
+              node <<'NODE'
           const fs = require("node:fs");
           const core = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request-core.json", "utf8"));
           const issue = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request-issue.json", "utf8"));
@@ -378,6 +434,38 @@ jobs:
             "test-output/live-adoption/pull-request.json",
             `${JSON.stringify(pr, null, 2)}\n`,
           );
+          NODE
+              echo "Pull request verification API path: REST"
+              return 0
+            fi
+
+            if is_rate_limit_error "${rest_error}"; then
+              return 2
+            fi
+
+            cat "${rest_error}" >&2
+            return 1
+          }
+
+          set +e
+          write_pr_snapshot_with_rest
+          snapshot_status=$?
+          set -e
+
+          if [[ "${snapshot_status}" -eq 2 ]]; then
+            echo "Pull request verification REST hit a rate limit; using GraphQL fallback." >&2
+            gh pr view "$PR_NUMBER" \
+              --repo "$TARGET_OWNER/$TARGET_REPO" \
+              --json labels,files,headRefName,state,title,url \
+              > test-output/live-adoption/pull-request.json
+            echo "Pull request verification API path: GraphQL fallback"
+          elif [[ "${snapshot_status}" -ne 0 ]]; then
+            exit "${snapshot_status}"
+          fi
+
+          node <<'NODE'
+          const fs = require("node:fs");
+          const pr = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request.json", "utf8"));
           const labels = new Set(pr.labels.map(label => label.name));
           const files = new Set(pr.files.map(file => file.path));
           if (pr.headRefName !== "contributors-please/update") {
