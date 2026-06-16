@@ -115,6 +115,19 @@ jobs:
             fi
 
             echo "- ${workflow}: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >> "$GITHUB_STEP_SUMMARY"
-            gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 15
+            if [[ "${workflow}" == "live-adoption.yml" ]]; then
+              # live-adoption is a real-API canary: it hits live GitHub and is
+              # rate-limit-sensitive (shared bot account). A flake here must NOT
+              # fail the deterministic sweep — watch without --exit-status and
+              # surface the result as a non-blocking warning.
+              gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --interval 15 || true
+              concl="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json conclusion --jq '.conclusion')"
+              if [[ "${concl}" != "success" ]]; then
+                echo "::warning::live-adoption canary did not pass (conclusion=${concl}); non-blocking — see run ${run_id}"
+                echo "- ⚠️ live-adoption canary: ${concl} (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            else
+              gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 15
+            fi
             echo "::endgroup::"
           done
