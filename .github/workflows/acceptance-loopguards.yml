@@ -49,10 +49,10 @@ jobs:
     if: ${{ (github.event_name == 'push' && vars.RUN_CONTRIBUTORS_PLEASE_LOOPGUARD == 'true') || (github.event_name == 'workflow_dispatch' && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-039')) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -131,7 +131,7 @@ jobs:
             echo "- workflow-run-history: test-output/CP-GHA-039/workflow-run-history.json"
             echo "- path-ignore-evidence: test-output/CP-GHA-039/path-ignore-evidence.txt"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-039
           path: test-output/CP-GHA-039
@@ -143,15 +143,15 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-040') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Prepare bootstrapped acceptance fixture
@@ -195,7 +195,7 @@ jobs:
             contributors:
               runs-on: ubuntu-latest
               steps:
-                - uses: actions/checkout@v4
+                - uses: actions/checkout@v6
                 - uses: smorinlabs/contributors-please-action@v1
                   with:
                     mode: pull-request
@@ -287,7 +287,7 @@ jobs:
             echo "- rerun-pr-opened: ${{ steps.rerun.outputs.pr-opened }}"
             echo "- workflow-fixture: test-output/CP-GHA-040/py-launch-blueprint-update-contributors.yml"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-040
           path: test-output/CP-GHA-040

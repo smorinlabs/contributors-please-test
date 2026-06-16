@@ -45,10 +45,10 @@ jobs:
     if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-001' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -100,7 +100,7 @@ jobs:
             echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
             echo "- fake-api-log: test-output/CP-GHA-001/api.log"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-001
           path: test-output/CP-GHA-001
@@ -112,10 +112,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-002') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -161,7 +161,7 @@ jobs:
             echo "- token-source: ${{ steps.contributors.outputs.token-source }}"
             echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-002
           path: test-output/CP-GHA-002
@@ -173,10 +173,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-003') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -237,7 +237,7 @@ jobs:
             echo "raw_log: test-output/CP-GHA-003/expected-failure.raw.log"
           } > test-output/CP-GHA-003/expected-failure.log
           cat test-output/CP-GHA-003/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-003
           path: test-output/CP-GHA-003
@@ -249,10 +249,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-004') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -321,7 +321,7 @@ jobs:
             echo "- git-log-evidence: test-output/CP-GHA-004/git-log-evidence.txt"
             echo "- changed: ${{ steps.contributors.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-004
           path: test-output/CP-GHA-004
@@ -333,10 +333,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-005') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -414,7 +414,7 @@ jobs:
             echo "raw_log: test-output/CP-GHA-005/expected-failure.raw.log"
           } > test-output/CP-GHA-005/expected-failure.log
           cat test-output/CP-GHA-005/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-005
           path: test-output/CP-GHA-005
@@ -426,10 +426,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-006') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -501,7 +501,7 @@ jobs:
             echo "- unignore-output: test-output/CP-GHA-006/unignore-contributors.md"
             echo "- committer-login: ${{ steps.contributors.outputs.committer-login }}"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-006
           path: test-output/CP-GHA-006

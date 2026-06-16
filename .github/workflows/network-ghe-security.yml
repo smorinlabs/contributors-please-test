@@ -45,7 +45,7 @@ jobs:
     if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-031' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Prepare isolated GHE fixture and fake API
@@ -91,7 +91,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:18031/user >/dev/null
           echo "CP_GHA_031_API=http://127.0.0.1:18031" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -133,7 +133,7 @@ jobs:
             echo "- output: test-output/CP-GHA-031/contributors.md"
             echo "- api-log: test-output/CP-GHA-031/api.log"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-031
           path: test-output/CP-GHA-031
@@ -145,10 +145,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-032') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -262,7 +262,7 @@ jobs:
             echo "- output: test-output/CP-GHA-032/contributors.md"
             echo "- proxy-log: test-output/CP-GHA-032/proxy.log"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-032
           path: test-output/CP-GHA-032
@@ -274,7 +274,7 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-041') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Prepare isolated identity fixture and fake API
@@ -356,7 +356,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:18041/user >/dev/null
           echo "CP_GHA_041_API=http://127.0.0.1:18041" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -398,7 +398,7 @@ jobs:
             echo "- mailmap: test-output/CP-GHA-041/mailmap.txt"
             echo "- expected-warning: Could not join git author Unknown Author <unknown@example.com>"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-041
           path: test-output/CP-GHA-041
@@ -410,10 +410,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-042') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -521,7 +521,7 @@ jobs:
             echo "control_output: test-output/CP-GHA-042/contributors.md"
           } > test-output/CP-GHA-042/expected-failure.log
           cat test-output/CP-GHA-042/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-042
           path: test-output/CP-GHA-042
@@ -533,10 +533,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-043') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -636,7 +636,7 @@ jobs:
             echo "artifact: cp-gha-043"
           } > test-output/CP-GHA-043/expected-failure.log
           cat test-output/CP-GHA-043/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-043
           path: test-output/CP-GHA-043
@@ -648,7 +648,7 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-048') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Prepare endpoint fixture and fake API
@@ -699,7 +699,7 @@ jobs:
           curl -fsS http://127.0.0.1:18048/rest/user >/dev/null
           echo "configured_graphql_url=http://127.0.0.1:18048/graphql" > "$out_dir/effective-endpoints.txt"
           echo "configured_rest_url=http://127.0.0.1:18048/rest" >> "$out_dir/effective-endpoints.txt"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -748,7 +748,7 @@ jobs:
             echo "- rest-api-log: test-output/CP-GHA-048/rest-api.log"
             echo "- graphql-api-log: test-output/CP-GHA-048/graphql-api.log"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-048
           path: test-output/CP-GHA-048

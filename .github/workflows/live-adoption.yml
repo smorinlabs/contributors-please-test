@@ -49,7 +49,7 @@ jobs:
           test -n "$TARGET_TOKEN"
 
       - name: Checkout scratch repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
           token: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
@@ -134,7 +134,7 @@ jobs:
           git push origin HEAD:main
 
       - name: Checkout action under test
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'main' }}
@@ -400,7 +400,7 @@ jobs:
 
       - name: Upload live adoption evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: live-adoption-evidence
           path: test-output/live-adoption
