@@ -209,7 +209,7 @@ for (const [file, ids] of Object.entries(expectedWorkflows)) {
   assert(text.includes("action_ref:"), `${file} is missing workflow_dispatch action_ref input`);
   assert(text.includes("suite_run_id:"), `${file} is missing workflow_dispatch suite_run_id input`);
   assert(text.includes("run-name:"), `${file} is missing run-name for downstream suite run discovery`);
-  const artifactUploads = [...text.matchAll(/uses: actions\/upload-artifact@v4/g)].length;
+  const artifactUploads = [...text.matchAll(/uses: actions\/upload-artifact@v\d+/g)].length;
   const hiddenArtifactUploads = [...text.matchAll(/include-hidden-files: true/g)].length;
   assert(
     artifactUploads === hiddenArtifactUploads,
@@ -263,7 +263,7 @@ for (const marker of [
   ".contributors.jsonl",
   "CONTRIBUTORS.md",
   "contributors-please/update",
-  "gh pr view",
+  "pulls/${PR_NUMBER}",
   "changed",
   "commit-sha",
   "pr-opened",

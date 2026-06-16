@@ -87,11 +87,9 @@ jobs:
           git config user.email "contributors-please-e2e@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_OWNER}/${TARGET_REPO}.git"
 
-          gh pr list \
-            --repo "$TARGET_OWNER/$TARGET_REPO" \
-            --state open \
-            --head "$TARGET_OWNER:contributors-please/update" \
-            --json number \
+          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls" \
+            -f state=open \
+            -f head="${TARGET_OWNER}:contributors-please/update" \
             --jq '.[].number' \
             | while read -r pr_number; do
                 if [[ -n "$pr_number" ]]; then
@@ -356,13 +354,30 @@ jobs:
           test "$PR_OPENED" = "true"
           test -n "$PR_NUMBER"
           test -n "$PR_URL"
-          gh pr view "$PR_NUMBER" \
-            --repo "$TARGET_OWNER/$TARGET_REPO" \
-            --json labels,files,headRefName,state,title,url \
-            > test-output/live-adoption/pull-request.json
+          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${PR_NUMBER}" \
+            > test-output/live-adoption/pull-request-core.json
+          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/issues/${PR_NUMBER}" \
+            > test-output/live-adoption/pull-request-issue.json
+          gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${PR_NUMBER}/files" \
+            -f per_page=100 \
+            > test-output/live-adoption/pull-request-files.json
           node <<'NODE'
           const fs = require("node:fs");
-          const pr = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request.json", "utf8"));
+          const core = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request-core.json", "utf8"));
+          const issue = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request-issue.json", "utf8"));
+          const fileList = JSON.parse(fs.readFileSync("test-output/live-adoption/pull-request-files.json", "utf8"));
+          const pr = {
+            files: fileList.map(file => ({ path: file.filename })),
+            headRefName: core.head.ref,
+            labels: issue.labels.map(label => ({ name: label.name })),
+            state: core.state,
+            title: core.title,
+            url: core.html_url,
+          };
+          fs.writeFileSync(
+            "test-output/live-adoption/pull-request.json",
+            `${JSON.stringify(pr, null, 2)}\n`,
+          );
           const labels = new Set(pr.labels.map(label => label.name));
           const files = new Set(pr.files.map(file => file.path));
           if (pr.headRefName !== "contributors-please/update") {
