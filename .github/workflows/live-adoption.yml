@@ -164,6 +164,7 @@ jobs:
           } > "$seed_path"
           cat > .contributors.yml <<'YAML'
           entry_template: "{{login}} | {{title}} | {{commits}}"
+          columns_per_row: 1
           sort: alphabetical
           min_contributions: 1
           YAML
@@ -478,6 +479,27 @@ jobs:
             if (!files.has(path)) {
               throw new Error(`missing PR file ${path}`);
             }
+          }
+          NODE
+          git fetch origin contributors-please/update
+          git show FETCH_HEAD:CONTRIBUTORS.md > test-output/live-adoption/pull-request-CONTRIBUTORS.md
+          git show FETCH_HEAD:.contributors.jsonl > test-output/live-adoption/pull-request.contributors.jsonl
+          node <<'NODE'
+          const fs = require("node:fs");
+          const contributors = fs.readFileSync("test-output/live-adoption/pull-request.contributors.jsonl", "utf8")
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map(line => JSON.parse(line));
+          const expected = contributors
+            .filter(contributor => !contributor.login.endsWith("[bot]"))
+            .sort((left, right) => left.login.localeCompare(right.login))
+            .map(contributor => `${contributor.login} | ${contributor.title} | ${contributor.commits}`)
+            .join("\n")
+            .concat("\n");
+          const actual = fs.readFileSync("test-output/live-adoption/pull-request-CONTRIBUTORS.md", "utf8");
+          if (actual !== expected) {
+            throw new Error(`unexpected pull request CONTRIBUTORS.md\nexpected:\n${expected}\nactual:\n${actual}`);
           }
           NODE
           {
