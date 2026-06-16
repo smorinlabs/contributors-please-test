@@ -48,10 +48,10 @@ jobs:
     if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-007' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -117,7 +117,7 @@ jobs:
             echo "- token-source: ${{ steps.contributors.outputs.token-source }}"
             echo "- default-classifier: no config file was loaded"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-007
           path: test-output/CP-GHA-007
@@ -129,10 +129,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-008') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -223,7 +223,7 @@ jobs:
             echo "- precedence: shared path matched the first category only"
             echo "- catch-all: misc path used the configured default category"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-008
           path: test-output/CP-GHA-008
@@ -235,10 +235,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-009') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -354,7 +354,7 @@ jobs:
             echo "- first matching combination rule won for combo-tester"
             echo "- multi-category combine mode rendered combine-tester"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-009
           path: test-output/CP-GHA-009
@@ -366,10 +366,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-010') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -436,7 +436,7 @@ jobs:
             echo "artifact: cp-gha-010"
           } >> test-output/CP-GHA-010/expected-failure.log
           cat test-output/CP-GHA-010/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-010
           path: test-output/CP-GHA-010
@@ -448,10 +448,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-011') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -510,7 +510,7 @@ jobs:
             echo "- output: test-output/CP-GHA-011/contributors.md"
             echo "- second-run-changed: ${{ steps.second_run.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-011
           path: test-output/CP-GHA-011
@@ -522,10 +522,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-012') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -592,7 +592,7 @@ jobs:
             echo "- output: test-output/CP-GHA-012/contributors.md"
             echo "- source and pinned fields preserved after commit discovery"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-012
           path: test-output/CP-GHA-012
@@ -604,10 +604,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-013') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -682,7 +682,7 @@ jobs:
             echo "- warning-enabled-summary: test-output/CP-GHA-013/warn-enabled-summary.md"
             echo "- warning-disabled-summary: test-output/CP-GHA-013/warn-disabled-summary.md"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-013
           path: test-output/CP-GHA-013
@@ -694,10 +694,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-019') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -763,7 +763,7 @@ jobs:
             echo "- output: test-output/CP-GHA-019/contributors.md"
             echo "- state: test-output/CP-GHA-019/.contributors.jsonl"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-019
           path: test-output/CP-GHA-019
@@ -775,10 +775,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-020') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -822,7 +822,7 @@ jobs:
             echo "- output: test-output/CP-GHA-020/contributors.md"
             echo "- action-summary: test-output/CP-GHA-020/action-summary.md"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-020
           path: test-output/CP-GHA-020

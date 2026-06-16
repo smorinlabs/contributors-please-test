@@ -51,15 +51,15 @@ jobs:
     if: ${{ inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-033' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Prepare CLI bootstrap fixture
@@ -130,7 +130,7 @@ jobs:
             echo "- action-changed: ${{ steps.action.outputs.changed }}"
             echo "- cli-state: test-output/CP-GHA-033/cli-state.jsonl"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-033
           path: test-output/CP-GHA-033
@@ -142,10 +142,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-034') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -188,7 +188,7 @@ jobs:
             echo "raw_log: test-output/CP-GHA-034/expected-failure.raw.log"
           } > test-output/CP-GHA-034/expected-failure.log
           cat test-output/CP-GHA-034/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-034
           path: test-output/CP-GHA-034
@@ -200,10 +200,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-035') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -270,7 +270,7 @@ jobs:
             echo "- pr: ${{ steps.bootstrap.outputs.pr-url }}"
             echo "- pr-evidence: test-output/CP-GHA-035/pr-evidence.json"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-035
           path: test-output/CP-GHA-035
@@ -282,20 +282,20 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-036') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please
           ref: ${{ inputs.library_ref || 'main' }}
           path: test-output/CP-GHA-036/contributors-please
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Run library schema checks
@@ -346,7 +346,7 @@ jobs:
             echo "raw_log: test-output/CP-GHA-036/expected-failure.raw.log"
           } > test-output/CP-GHA-036/expected-failure.log
           cat test-output/CP-GHA-036/expected-failure.log >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-036
           path: test-output/CP-GHA-036
@@ -358,12 +358,12 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-037') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please
           ref: ${{ inputs.library_ref || 'main' }}
           path: test-output/CP-GHA-037/contributors-please
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Exercise public API
@@ -471,7 +471,7 @@ jobs:
             echo "- output: test-output/CP-GHA-037/contributors.md"
             echo "- public-api-smoke: test-output/CP-GHA-037/public-api-smoke.mjs"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-037
           path: test-output/CP-GHA-037
@@ -483,20 +483,20 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-038') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please
           ref: ${{ inputs.library_ref || 'main' }}
           path: test-output/CP-GHA-038/contributors-please
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: test-output/CP-GHA-038/contributors-please-action
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Build library and action from source
@@ -553,7 +553,7 @@ jobs:
             echo "- library-dist-diff: test-output/CP-GHA-038/library-dist.diff"
             echo "- action-dist-diff: test-output/CP-GHA-038/action-dist.diff"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-038
           path: test-output/CP-GHA-038
@@ -565,15 +565,15 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-044') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
           path: ${{ env.ACTION_PATH }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Prepare CLI fixture
@@ -630,7 +630,7 @@ jobs:
             echo "- output: test-output/CP-GHA-044/contributors.md"
             echo "- action-changed: ${{ steps.action.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-044
           path: test-output/CP-GHA-044
@@ -642,10 +642,10 @@ jobs:
     if: ${{ always() && (inputs.test_id == 'all' || inputs.test_id == 'CP-GHA-047') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: smorinlabs/contributors-please-action
           ref: ${{ inputs.action_ref || 'v1' }}
@@ -738,7 +738,7 @@ jobs:
             echo "- multiline-sha: ${{ steps.multiline_message.outputs.commit-sha }}"
             echo "- literal-sha: ${{ steps.literal_message.outputs.commit-sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cp-gha-047
           path: test-output/CP-GHA-047
