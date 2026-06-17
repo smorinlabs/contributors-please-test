@@ -239,9 +239,12 @@ for (const marker of [
   "workflow run",
   "gh run watch",
   "suite_run_id",
-  // Task 9: lane selector plumbed through the downstream suite.
+  // Task 9: lane selector plumbed through the downstream suite, and gated so the
+  // fast lane runs a real subset rather than every grouped suite.
   "suite_scope",
   "SUITE_SCOPE",
+  'SUITE_SCOPE}" == "fast"',
+  "Running FAST lane",
 ]) {
   assert(orchestrator.includes(marker), `${orchestratorWorkflow} missing ${marker}`);
 }
