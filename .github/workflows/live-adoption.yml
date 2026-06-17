@@ -196,6 +196,35 @@ jobs:
           printf '%s\n' "${ACTION_PATH}/" >> .git/info/exclude
           git config --local --unset-all http.https://github.com/.extraheader || true
 
+      # Task 1: exercise the action through the real `uses:` consumer boundary
+      # (action.yml / runs.using / runs.main / input wiring), not just the bundle
+      # entrypoint. dry-run: true keeps it non-mutating (src/index.ts skips commit,
+      # push, label, and pull request side effects under dry-run); the `repository`
+      # input targets the scratch repo so it cannot mutate contributors-please-test.
+      - name: Run action metadata smoke
+        id: action-metadata-smoke
+        uses: ./.github/actions/contributors-please-action
+        with:
+          pat: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+          repository: ${{ env.TARGET_OWNER }}/${{ env.TARGET_REPO }}
+          mode: check
+          dry-run: true
+          bootstrap: true
+          output-file: CONTRIBUTORS.md
+          state-file: .contributors.jsonl
+          config-file: .contributors.yml
+          unignore: ${{ steps.target-actor.outputs.login }}
+
+      - name: Verify action metadata smoke outputs
+        env:
+          CHANGED: ${{ steps.action-metadata-smoke.outputs.changed }}
+          CONTRIBUTORS_JSON: ${{ steps.action-metadata-smoke.outputs.contributors-json }}
+        run: |
+          set -euo pipefail
+          test -n "${CHANGED}"
+          test -n "${CONTRIBUTORS_JSON}"
+          node -e 'const contributors=JSON.parse(process.env.CONTRIBUTORS_JSON); if (!Array.isArray(contributors)) process.exit(1);'
+
       - name: Run commit mode bootstrap
         id: commit-bootstrap
         env:
@@ -301,6 +330,31 @@ jobs:
           grep -F "\"login\":\"$declared_login\"" .contributors.jsonl
           grep -F '"source":"declared"' .contributors.jsonl
           grep -F '"pinned":true' .contributors.jsonl
+          # Task 2: commit-mode artifact semantics. With columns_per_row: 1 the
+          # delimited entry_template must render exactly one non-bot record per row;
+          # the v1.3.1 regression concatenated multiple entries onto one line. This
+          # check is sort-agnostic and focused on observable structure (no renderer
+          # reimplementation): row count == non-bot records, each row a single entry.
+          node <<'NODE'
+          const fs = require("node:fs");
+          const records = fs.readFileSync(".contributors.jsonl", "utf8")
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map(line => JSON.parse(line));
+          const nonBot = records.filter(record => !record.login.endsWith("[bot]"));
+          const lines = fs.readFileSync("CONTRIBUTORS.md", "utf8")
+            .split("\n")
+            .filter(line => line.trim().length > 0);
+          if (lines.length !== nonBot.length) {
+            throw new Error(`unexpected commit mode CONTRIBUTORS.md: expected ${nonBot.length} rows, found ${lines.length}\n${lines.join("\n")}`);
+          }
+          for (const line of lines) {
+            if (!/^\S+ \| .+ \| \d+$/.test(line)) {
+              throw new Error(`commit mode row is not a single "login | title | commits" entry: ${line}`);
+            }
+          }
+          NODE
           shasum -a 256 CONTRIBUTORS.md .contributors.jsonl > test-output/live-adoption/incremental.sha256
           {
             echo "commit-incremental.changed=$CHANGED"
@@ -510,12 +564,14 @@ jobs:
 
       - name: Summarize live adoption evidence
         if: ${{ always() }}
+        env:
+          ACTION_REF: ${{ inputs.action_ref || 'main' }}
         run: |
           {
             echo "### contributors-please live adoption"
             echo ""
             echo "- target: ${TARGET_OWNER}/${TARGET_REPO}"
-            echo "- action ref: ${{ inputs.action_ref || 'main' }}"
+            echo "- action ref: ${ACTION_REF}"
             echo "- commit bootstrap changed: ${{ steps.commit-bootstrap.outputs.changed }}"
             echo "- incremental changed: ${{ steps.commit-incremental.outputs.changed }}"
             echo "- idempotent changed: ${{ steps.commit-idempotent.outputs.changed }}"
@@ -530,3 +586,29 @@ jobs:
           name: live-adoption-evidence
           path: test-output/live-adoption
           include-hidden-files: true
+
+      # BR1: teardown so a mid-run failure does not leave an open PR / branch /
+      # pending label behind until the next dispatch. Runs on success and failure.
+      # Failures here are logged, not swallowed, so a wedged scratch state is visible.
+      - name: Teardown scratch pull request and branch
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTORS_PLEASE_E2E_TOKEN }}
+        run: |
+          set -uo pipefail
+          teardown_status=0
+          open_prs="$(gh api --method GET "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls" \
+            -f state=open \
+            -f head="${TARGET_OWNER}:contributors-please/update" \
+            --jq '.[].number' 2>&1)" || { echo "Teardown: failed to list PRs: ${open_prs}" >&2; teardown_status=1; open_prs=""; }
+          for pr_number in ${open_prs}; do
+            if ! gh api --method PATCH "repos/${TARGET_OWNER}/${TARGET_REPO}/pulls/${pr_number}" \
+              -f state=closed >/dev/null 2>&1; then
+              echo "Teardown: failed to close PR #${pr_number}" >&2
+              teardown_status=1
+            fi
+          done
+          if ! git push origin --delete contributors-please/update 2>/dev/null; then
+            echo "Teardown: branch contributors-please/update already absent or delete failed" >&2
+          fi
+          exit "${teardown_status}"
