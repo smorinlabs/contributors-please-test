@@ -248,9 +248,13 @@ jobs:
       - name: Verify selection
         run: |
           set -euo pipefail
-          grep -F "alpha zeta" test-output/CP-GHA-028/contributors.md
-          grep -F "zeta alpha" test-output/CP-GHA-028/contributions-contributors.md
-          grep -F "alpha zeta" test-output/CP-GHA-028/first-seen-contributors.md
+          # columns_per_row now defaults to 1 (one entry per row), so assert
+          # ordering by extracting the login sequence rather than matching a
+          # single concatenated row.
+          order_of() { grep -oE 'alpha|zeta' "$1" | awk '!seen[$0]++' | paste -sd' ' -; }
+          test "$(order_of test-output/CP-GHA-028/contributors.md)" = "alpha zeta"
+          test "$(order_of test-output/CP-GHA-028/contributions-contributors.md)" = "zeta alpha"
+          test "$(order_of test-output/CP-GHA-028/first-seen-contributors.md)" = "alpha zeta"
           if grep -F "small" test-output/CP-GHA-028/contributors.md; then
             echo "min-contributions did not filter small" >&2
             exit 1
@@ -523,8 +527,11 @@ jobs:
           git log -1 --pretty=%B > test-output/CP-GHA-045/commit-message.txt
           grep -F "docs: update contributors" test-output/CP-GHA-045/commit-message.txt
           grep -F "[skip ci]" test-output/CP-GHA-045/commit-message.txt
-          grep -F "default-seven default-six default-five default-four default-three default-two" test-output/CP-GHA-045/contributors.md
-          grep -F "default-one" test-output/CP-GHA-045/contributors.md
+          # columns_per_row now defaults to 1, so the seven entries render one
+          # per row. Verify they all appear in contributions-descending order.
+          got="$(grep -oE 'default-(seven|six|five|four|three|two|one)' test-output/CP-GHA-045/contributors.md | awk '!seen[$0]++')"
+          expected="$(printf 'default-seven\ndefault-six\ndefault-five\ndefault-four\ndefault-three\ndefault-two\ndefault-one')"
+          test "$got" = "$expected"
           test "${{ steps.contributors.outputs.token-source }}" = "pat"
           test "${{ steps.contributors.outputs.pr-opened }}" = "false"
           test "${{ steps.contributors.outputs.contributors-count }}" = "7"
@@ -537,7 +544,7 @@ jobs:
             echo "bootstrap=false"
             echo "sort=contributions"
             echo "min-contributions=1"
-            echo "columns-per-row=6"
+            echo "columns-per-row=1"
             echo "commit-message=docs: update contributors / [skip ci]"
           } > test-output/CP-GHA-045/resolved-defaults.txt
           {
