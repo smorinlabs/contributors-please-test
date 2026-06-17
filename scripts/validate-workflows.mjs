@@ -239,6 +239,9 @@ for (const marker of [
   "workflow run",
   "gh run watch",
   "suite_run_id",
+  // Task 9: lane selector plumbed through the downstream suite.
+  "suite_scope",
+  "SUITE_SCOPE",
 ]) {
   assert(orchestrator.includes(marker), `${orchestratorWorkflow} missing ${marker}`);
 }
@@ -248,6 +251,18 @@ for (const file of Object.keys(expectedWorkflows)) {
 assert(
   orchestrator.includes(liveAdoptionWorkflow),
   `${orchestratorWorkflow} does not dispatch ${liveAdoptionWorkflow}`,
+);
+// Script-injection guard (SEC1): dispatch-controlled client_payload values must flow
+// through env: and be referenced as "${SOURCE_REPO}", never interpolated as ${{ ... }}
+// directly inside a run: shell body.
+assert(
+  orchestrator.includes("SOURCE_REPO:") &&
+    orchestrator.includes("SOURCE_WORKFLOW_RUN_ID:"),
+  `${orchestratorWorkflow} must expose source_repo/source_workflow_run_id via env:, not inline`,
+);
+assert(
+  !/echo .*\$\{\{\s*github\.event\.client_payload/.test(orchestrator),
+  `${orchestratorWorkflow} interpolates client_payload directly into a shell echo (script-injection risk); route it through env:`,
 );
 
 const liveAdoption = readFileSync(join(workflowDir, liveAdoptionWorkflow), "utf8");
@@ -276,9 +291,22 @@ for (const marker of [
   "pr-number",
   "live-adoption-evidence",
   "include-hidden-files: true",
+  // Task 1: real `uses:` action consumer-boundary smoke leg.
+  "Run action metadata smoke",
+  "uses: ./.github/actions/contributors-please-action",
+  "dry-run: true",
+  "Verify action metadata smoke outputs",
+  // Task 2: commit-mode artifact-semantics assertion.
+  "unexpected commit mode CONTRIBUTORS.md",
 ]) {
   assert(liveAdoption.includes(marker), `${liveAdoptionWorkflow} missing ${marker}`);
 }
+// Script-injection guard (SEC2): action_ref is dispatch-controlled and must be
+// referenced via env (${ACTION_REF}) inside run: bodies, not interpolated as ${{ }}.
+assert(
+  !/echo .*\$\{\{\s*inputs\.action_ref/.test(liveAdoption),
+  `${liveAdoptionWorkflow} interpolates inputs.action_ref directly into a shell echo (script-injection risk); route it through env:`,
+);
 
 for (const id of expectedFailureIds) {
   const file = Object.entries(expectedWorkflows).find(([, ids]) => ids.includes(id))?.[0];
