@@ -52,6 +52,7 @@ const expectedWorkflowFiles = [
   ...Object.keys(expectedWorkflows),
   liveAdoptionWorkflow,
   orchestratorWorkflow,
+  "pr-diff-tree.yml",
 ].sort();
 
 const coreJobs = [
